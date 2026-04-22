@@ -30,22 +30,20 @@ Ja existe no projeto:
 - schema Prisma inicial
 - consultas do dashboard e dos modulos
 - server actions basicas para criacao
-- seed inicial com usuario demo
+- autenticacao real via Supabase Auth
 - clientes Supabase para browser e SSR
-
-Autenticacao real ainda nao foi implementada. Nesta fase, o app usa um usuario demo persistido no banco.
 
 ## Como rodar
 
 1. Crie um banco PostgreSQL.
 2. O projeto ja tem `.env.local` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-3. Adicione a `DATABASE_URL` do Supabase para o Prisma.
+3. Adicione `DATABASE_URL` e `DIRECT_URL` do Supabase para o Prisma.
 4. Rode os comandos:
 
 ```bash
 npm install
 npm run prisma:generate
-npm run prisma:migrate -- --name init
+npx prisma db push
 npm run prisma:seed
 npm run dev
 ```
@@ -62,17 +60,10 @@ Arquivos criados:
 - `src/lib/supabase/client.ts`
 - `src/lib/supabase/server.ts`
 
-Para concluir o uso do Prisma com Supabase, ainda falta preencher `DATABASE_URL` com a connection string Postgres do projeto.
+Use:
 
-No painel do Supabase, abra `Connect` e copie a string de conexao do Postgres apropriada para Prisma.
-
-## Usuario demo
-
-Por padrao o app usa:
-
-- `DEMO_USER_EMAIL=demo@lst.app`
-
-Voce pode alterar isso no `.env`.
+- `DATABASE_URL` com pooler
+- `DIRECT_URL` para operacoes diretas de schema
 
 ## Arquivos principais
 
@@ -84,8 +75,7 @@ Voce pode alterar isso no `.env`.
 
 ## Proximos passos
 
-- autenticar usuarios reais
-- adicionar edicao e exclusao
-- criar logs de conclusao para tarefas, treino, dieta e remedios
+- adicionar edicao inline dos registros
+- criar logs de conclusao detalhados para treino, dieta e remedios
 - anexos de exames
 - busca global real

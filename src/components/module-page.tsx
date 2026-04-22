@@ -53,7 +53,6 @@ type ModulePageProps = {
 
 export function ModulePage({
   slug,
-  countLabel,
   records = [],
   extraSections = [],
   createCard,
@@ -65,9 +64,6 @@ export function ModulePage({
   if (!moduleInfo) {
     return null;
   }
-
-  const Icon = moduleInfo.icon;
-
   return (
     <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
       <section className="space-y-6">
