@@ -13,9 +13,15 @@ export async function createClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // setAll foi chamado em um Server Component (Next.js nao deixa
+            // escrever cookies durante render). Pode ignorar — o proxy.ts
+            // ja faz o refresh de sessao em cada request.
+          }
         },
       },
     },

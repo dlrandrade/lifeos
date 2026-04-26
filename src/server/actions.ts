@@ -38,6 +38,20 @@ export async function createTask(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function updateTask(formData: FormData) {
+  const taskId = readId(formData, "taskId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({ title })
+    .eq("id", taskId);
+  if (error) throw new Error(`updateTask: ${error.message}`);
+
+  revalidatePath("/dashboard");
+}
+
 export async function toggleTaskForToday(formData: FormData) {
   const taskId = readId(formData, "taskId");
   const { userId, supabase } = await getCurrentUserContext();
@@ -520,4 +534,243 @@ export async function createExam(formData: FormData) {
   if (error) throw new Error(`createExam: ${error.message}`);
 
   revalidatePath("/exames");
+}
+
+export async function updateExam(formData: FormData) {
+  const examId = readId(formData, "examId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase.from("exams").update({ name }).eq("id", examId);
+  if (error) throw new Error(`updateExam: ${error.message}`);
+  revalidatePath("/exames");
+}
+
+export async function deleteExam(formData: FormData) {
+  const examId = readId(formData, "examId");
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("exams").delete().eq("id", examId);
+  if (error) throw new Error(`deleteExam: ${error.message}`);
+  revalidatePath("/exames");
+}
+
+// ---------- Workouts (edits + toggle) ----------
+
+export async function updateWorkoutPlan(formData: FormData) {
+  const planId = readId(formData, "planId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("workout_plans").update({ name }).eq("id", planId);
+  if (error) throw new Error(`updateWorkoutPlan: ${error.message}`);
+  revalidatePath("/treinos");
+  revalidatePath("/dashboard");
+}
+
+export async function updateWorkoutDay(formData: FormData) {
+  const dayId = readId(formData, "dayId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("workout_days").update({ title }).eq("id", dayId);
+  if (error) throw new Error(`updateWorkoutDay: ${error.message}`);
+  revalidatePath("/treinos");
+}
+
+export async function updateWorkoutExercise(formData: FormData) {
+  const exerciseId = readId(formData, "exerciseId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("workout_exercises")
+    .update({ name })
+    .eq("id", exerciseId);
+  if (error) throw new Error(`updateWorkoutExercise: ${error.message}`);
+  revalidatePath("/treinos");
+}
+
+export async function toggleWorkoutExerciseForToday(formData: FormData) {
+  const exerciseId = readId(formData, "exerciseId");
+  const { userId, supabase } = await getCurrentUserContext();
+  const occurredOn = todayDateIso();
+
+  const { data: existing, error: selErr } = await supabase
+    .from("workout_logs")
+    .select("id")
+    .eq("workout_exercise_id", exerciseId)
+    .eq("occurred_on", occurredOn)
+    .maybeSingle();
+  if (selErr) throw new Error(`toggleWorkoutExercise: ${selErr.message}`);
+
+  if (existing) {
+    const { error } = await supabase
+      .from("workout_logs")
+      .delete()
+      .eq("id", existing.id);
+    if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+  } else {
+    const { error } = await supabase.from("workout_logs").insert({
+      user_id: userId,
+      workout_exercise_id: exerciseId,
+      occurred_on: occurredOn,
+      completed: true,
+    });
+    if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+  }
+
+  revalidatePath("/treinos");
+  revalidatePath("/dashboard");
+}
+
+// ---------- Meals (edits + toggle) ----------
+
+export async function updateMealPlan(formData: FormData) {
+  const planId = readId(formData, "planId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("meal_plans").update({ name }).eq("id", planId);
+  if (error) throw new Error(`updateMealPlan: ${error.message}`);
+  revalidatePath("/dieta");
+  revalidatePath("/dashboard");
+}
+
+export async function updateMealSection(formData: FormData) {
+  const sectionId = readId(formData, "sectionId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("meal_sections")
+    .update({ title })
+    .eq("id", sectionId);
+  if (error) throw new Error(`updateMealSection: ${error.message}`);
+  revalidatePath("/dieta");
+}
+
+export async function updateMealItem(formData: FormData) {
+  const itemId = readId(formData, "itemId");
+  const description = nonEmptyText.parse(readText(formData, "description"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("meal_items")
+    .update({ description })
+    .eq("id", itemId);
+  if (error) throw new Error(`updateMealItem: ${error.message}`);
+  revalidatePath("/dieta");
+}
+
+export async function toggleMealForToday(formData: FormData) {
+  const sectionId = readId(formData, "sectionId");
+  const { userId, supabase } = await getCurrentUserContext();
+  const occurredOn = todayDateIso();
+
+  const { data: existing, error: selErr } = await supabase
+    .from("meal_logs")
+    .select("id")
+    .eq("meal_section_id", sectionId)
+    .eq("occurred_on", occurredOn)
+    .maybeSingle();
+  if (selErr) throw new Error(`toggleMeal: ${selErr.message}`);
+
+  if (existing) {
+    const { error } = await supabase
+      .from("meal_logs")
+      .delete()
+      .eq("id", existing.id);
+    if (error) throw new Error(`toggleMeal: ${error.message}`);
+  } else {
+    const { error } = await supabase.from("meal_logs").insert({
+      user_id: userId,
+      meal_section_id: sectionId,
+      occurred_on: occurredOn,
+      completed: true,
+    });
+    if (error) throw new Error(`toggleMeal: ${error.message}`);
+  }
+
+  revalidatePath("/dieta");
+  revalidatePath("/dashboard");
+}
+
+// ---------- Books / Movies (edit titles) ----------
+
+export async function updateBook(formData: FormData) {
+  const bookId = readId(formData, "bookId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const author = optionalText.parse(readText(formData, "author"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("books")
+    .update({ title, author: author || null })
+    .eq("id", bookId);
+  if (error) throw new Error(`updateBook: ${error.message}`);
+  revalidatePath("/livros");
+  revalidatePath("/dashboard");
+}
+
+export async function updateMovie(formData: FormData) {
+  const movieId = readId(formData, "movieId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const genre = optionalText.parse(readText(formData, "genre"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("movies")
+    .update({ title, genre: genre || null })
+    .eq("id", movieId);
+  if (error) throw new Error(`updateMovie: ${error.message}`);
+  revalidatePath("/filmes");
+}
+
+// ---------- Appointments / Reminders (edit) ----------
+
+export async function updateAppointment(formData: FormData) {
+  const appointmentId = readId(formData, "appointmentId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const startsAtRaw = readText(formData, "startsAt");
+  const update: Record<string, string> = { title };
+  if (startsAtRaw) {
+    update.starts_at = z.coerce.date().parse(startsAtRaw).toISOString();
+  }
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("appointments")
+    .update(update)
+    .eq("id", appointmentId);
+  if (error) throw new Error(`updateAppointment: ${error.message}`);
+  revalidatePath("/compromissos");
+  revalidatePath("/dashboard");
+}
+
+export async function updateReminder(formData: FormData) {
+  const reminderId = readId(formData, "reminderId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("reminders")
+    .update({ title })
+    .eq("id", reminderId);
+  if (error) throw new Error(`updateReminder: ${error.message}`);
+  revalidatePath("/lembretes");
+}
+
+// ---------- Medications (edit + delete) ----------
+
+export async function updateMedication(formData: FormData) {
+  const medicationId = readId(formData, "medicationId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("medications")
+    .update({ name })
+    .eq("id", medicationId);
+  if (error) throw new Error(`updateMedication: ${error.message}`);
+  revalidatePath("/remedios");
+}
+
+export async function deleteMedication(formData: FormData) {
+  const medicationId = readId(formData, "medicationId");
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("medications")
+    .delete()
+    .eq("id", medicationId);
+  if (error) throw new Error(`deleteMedication: ${error.message}`);
+  revalidatePath("/remedios");
 }

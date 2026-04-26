@@ -1,5 +1,7 @@
-import { ModulePage } from "@/components/module-page";
-import { CreateCard } from "@/components/create-card";
+import { Dumbbell } from "lucide-react";
+import { PageShell, InnerCard } from "@/components/page-shell";
+import { ItemRow } from "@/components/item-row";
+import { InlineAdd } from "@/components/inline-add";
 import {
   createWorkoutDay,
   createWorkoutExercise,
@@ -7,93 +9,184 @@ import {
   deleteWorkoutDay,
   deleteWorkoutExercise,
   deleteWorkoutPlan,
+  toggleWorkoutExerciseForToday,
+  updateWorkoutDay,
+  updateWorkoutExercise,
+  updateWorkoutPlan,
 } from "@/server/actions";
-import { getModuleData } from "@/server/app-data";
+import { getTreinosData } from "@/server/app-data";
+
+const WEEK_DAY_NAMES = [
+  "Domingo",
+  "Segunda-feira",
+  "Terca-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sabado",
+];
 
 export default async function TreinosPage() {
-  const data = await getModuleData("treinos");
+  const data = await getTreinosData();
+
+  if (!data.plan) {
+    return (
+      <PageShell icon={Dumbbell}>
+        <InnerCard>
+          <h1 className="text-3xl font-bold tracking-tight">Treino</h1>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Crie um plano para comecar.
+          </p>
+          <div className="mt-6">
+            <InlineAdd
+              action={createWorkoutPlan}
+              fields={[{ name: "name", placeholder: "Ex.: Hipertrofia Abril" }]}
+              label="Novo plano"
+            />
+          </div>
+        </InnerCard>
+      </PageShell>
+    );
+  }
+
   return (
-    <ModulePage
-      slug="treinos"
-      countLabel={data.countLabel}
-      records={data.records.map((record) => ({
-        ...record,
-        actions: [
-          {
-            label: "Excluir dia",
-            action: deleteWorkoutDay,
-            hiddenFields: { dayId: record.id },
-            tone: "danger",
-          },
-        ],
-      }))}
-      extraSections={
-        "sections" in data && data.sections
-          ? data.sections.map((section) => ({
-              id: section.id,
-              title: section.title,
-              subtitle: section.subtitle,
-              records: section.items.map((item) => ({
-                id: item.id,
-                title: item.title,
-                subtitle: item.subtitle,
-                actions: [
-                  {
-                    label: "Excluir exercicio",
+    <PageShell icon={Dumbbell}>
+      <InnerCard>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Treino{" "}
+          <span className="font-normal text-[var(--text-soft)]">de hoje</span>
+        </h1>
+
+        {data.today.id ? (
+          <>
+            <h2 className="mt-8 text-base font-bold">{data.today.title}</h2>
+            <div className="mt-3 divide-y divide-[var(--line)]">
+              {data.today.exercises.map((exercise) => (
+                <ItemRow
+                  key={exercise.id}
+                  title={exercise.name}
+                  toggle={{
+                    action: toggleWorkoutExerciseForToday,
+                    hiddenFields: { exerciseId: exercise.id },
+                    checked: exercise.completed,
+                  }}
+                  edit={{
+                    action: updateWorkoutExercise,
+                    hiddenFields: { exerciseId: exercise.id },
+                    fields: [{ name: "name", defaultValue: exercise.name }],
+                  }}
+                  remove={{
                     action: deleteWorkoutExercise,
-                    hiddenFields: { exerciseId: item.id },
-                    tone: "danger",
-                  },
-                ],
-              })),
-            }))
-          : []
-      }
-      createCard={{
-        title: "Novo plano",
-        description: "Cria um plano de treino base para depois receber dias e exercicios.",
-        action: createWorkoutPlan,
-        fields: [{ name: "name", placeholder: "Ex.: Hipertrofia Abril" }],
-        submitLabel: "Salvar plano",
-      }}
-      secondaryCards={
-        <>
-          {"planId" in data && data.planId ? (
-            <>
-              <CreateCard
-                title="Novo dia"
-                description="Adiciona um dia ao plano ativo."
-                action={createWorkoutDay}
-                hiddenFields={{ planId: data.planId }}
-                fields={[
-                  { name: "title", placeholder: "Ex.: Peito e triceps" },
-                  { name: "weekDay", placeholder: "0 a 6", type: "number" },
-                ]}
-                submitLabel="Salvar dia"
-              />
-              {("sections" in data ? data.sections : []).map((section) => (
-                <CreateCard
-                  key={section.id}
-                  title={`Novo exercicio`}
-                  description={`Adicionar exercicio em ${section.title}.`}
-                  action={createWorkoutExercise}
-                  hiddenFields={{ dayId: section.id }}
-                  fields={[{ name: "name", placeholder: "Ex.: Supino reto" }]}
-                  submitLabel="Salvar exercicio"
+                    hiddenFields: { exerciseId: exercise.id },
+                  }}
                 />
               ))}
-              <CreateCard
-                title="Excluir plano"
-                description="Remove o plano ativo e toda sua estrutura."
-                action={deleteWorkoutPlan}
-                hiddenFields={{ planId: data.planId }}
-                fields={[]}
-                submitLabel="Excluir plano"
+            </div>
+            <div className="mt-2">
+              <InlineAdd
+                action={createWorkoutExercise}
+                hiddenFields={{ dayId: data.today.id }}
+                fields={[{ name: "name", placeholder: "Ex.: Supino reto" }]}
+                label="Adicionar exercicio"
               />
-            </>
-          ) : null}
-        </>
-      }
-    />
+            </div>
+          </>
+        ) : (
+          <div className="mt-8">
+            <p className="text-sm text-[var(--text-muted)]">
+              Sem treino para hoje (
+              {WEEK_DAY_NAMES[data.today.weekDay]}).
+            </p>
+            <div className="mt-3">
+              <InlineAdd
+                action={createWorkoutDay}
+                hiddenFields={{ planId: data.plan.id }}
+                fields={[
+                  { name: "title", placeholder: "Titulo (ex.: Peito e triceps)" },
+                  {
+                    name: "weekDay",
+                    placeholder: "Dia da semana (0=Dom, 1=Seg, ...)",
+                    type: "number",
+                  },
+                ]}
+                label="Criar dia"
+              />
+            </div>
+          </div>
+        )}
+
+        {data.otherDays.length ? (
+          <div className="mt-10 space-y-1.5">
+            {data.otherDays.map((day) => (
+              <ItemRow
+                key={day.id}
+                title={day.title}
+                faded
+                bold
+                edit={{
+                  action: updateWorkoutDay,
+                  hiddenFields: { dayId: day.id },
+                  fields: [
+                    { name: "title", defaultValue: day.title },
+                  ],
+                }}
+                remove={{
+                  action: deleteWorkoutDay,
+                  hiddenFields: { dayId: day.id },
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+          <details>
+            <summary className="cursor-pointer text-xs uppercase tracking-[0.18em] text-[var(--text-muted)] [&::-webkit-details-marker]:hidden">
+              {data.plan.name} • editar
+            </summary>
+            <div className="mt-2 space-y-2">
+              <form action={updateWorkoutPlan} className="flex gap-2">
+                <input type="hidden" name="planId" value={data.plan.id} />
+                <input
+                  name="name"
+                  defaultValue={data.plan.name}
+                  className="flex-1 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-full bg-[var(--text)] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Salvar
+                </button>
+              </form>
+              <form action={deleteWorkoutPlan}>
+                <input type="hidden" name="planId" value={data.plan.id} />
+                <button
+                  type="submit"
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  Excluir plano
+                </button>
+              </form>
+            </div>
+          </details>
+
+          <InlineAdd
+            action={createWorkoutDay}
+            hiddenFields={{ planId: data.plan.id }}
+            fields={[
+              { name: "title", placeholder: "Titulo do dia" },
+              {
+                name: "weekDay",
+                placeholder: "0=Dom 1=Seg 2=Ter ...",
+                type: "number",
+              },
+            ]}
+            label="Novo dia"
+            variant="fab"
+          />
+        </div>
+      </InnerCard>
+    </PageShell>
   );
 }

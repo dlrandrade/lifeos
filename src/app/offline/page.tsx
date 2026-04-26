@@ -7,29 +7,23 @@ export const metadata = {
 
 export default function OfflinePage() {
   return (
-    <div className="grain min-h-screen bg-transparent px-4 py-10 text-foreground md:px-6">
-      <div className="soft-card mx-auto max-w-xl rounded-[2rem] p-8 sm:p-12">
-        <p className="text-sm uppercase tracking-[0.28em] text-muted">lst</p>
-        <h1 className="headline mt-6 text-5xl leading-[0.92]">
+    <div className="min-h-screen px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-md rounded-[2rem] bg-[var(--shell)] px-6 py-10 sm:px-10">
+        <p className="text-2xl font-bold tracking-tight">lst</p>
+        <h1 className="mt-6 text-3xl font-bold leading-tight">
           Voce esta offline.
         </h1>
-        <p className="mt-6 text-base leading-7 text-muted">
+        <p className="mt-4 text-sm leading-6 text-[var(--text-soft)]">
           Algumas paginas ja vistas continuam disponiveis. Quando a conexao
           voltar, sincronizamos automaticamente.
         </p>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <div className="mt-8 flex gap-3">
           <Link
             href="/dashboard"
-            className="rounded-[1.5rem] bg-[#161616] px-5 py-3 text-center text-sm font-semibold text-[#f8f3eb]"
+            className="flex-1 rounded-full bg-[var(--text)] px-4 py-3 text-center text-sm font-semibold text-white"
           >
-            Tentar dashboard
-          </Link>
-          <Link
-            href="/hidratacao"
-            className="rounded-[1.5rem] border border-line bg-white/70 px-5 py-3 text-center text-sm font-semibold"
-          >
-            Hidratacao
+            Tentar novamente
           </Link>
         </div>
       </div>

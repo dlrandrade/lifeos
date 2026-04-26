@@ -14,38 +14,40 @@ export function AuthForm({
   includeName = false,
 }: AuthFormProps) {
   return (
-    <form action={action} className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_rgba(33,27,19,0.08)]">
-      <p className="text-xs uppercase tracking-[0.24em] text-muted">{title}</p>
-      <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
+    <form action={action} className="rounded-[1.5rem] bg-white p-5">
+      <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
+        {title}
+      </p>
+      <p className="mt-2 text-sm text-[var(--text-soft)]">{description}</p>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-5 space-y-2">
         {includeName ? (
           <input
             name="fullName"
             type="text"
             placeholder="Seu nome"
-            className="w-full rounded-2xl border border-line bg-[#f7f3ed] px-4 py-3 text-sm outline-none"
+            className="w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm outline-none"
           />
         ) : null}
         <input
           name="email"
           type="email"
           placeholder="voce@email.com"
-          className="w-full rounded-2xl border border-line bg-[#f7f3ed] px-4 py-3 text-sm outline-none"
           required
+          className="w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm outline-none"
         />
         <input
           name="password"
           type="password"
           placeholder="Sua senha"
-          className="w-full rounded-2xl border border-line bg-[#f7f3ed] px-4 py-3 text-sm outline-none"
           required
+          className="w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm outline-none"
         />
       </div>
 
       <button
         type="submit"
-        className="mt-5 rounded-full bg-[#161616] px-5 py-3 text-sm font-semibold text-[#f8f3eb]"
+        className="mt-4 w-full rounded-full bg-[var(--text)] px-4 py-2.5 text-sm font-semibold text-white"
       >
         {submitLabel}
       </button>

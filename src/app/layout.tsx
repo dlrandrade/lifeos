@@ -1,15 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
-const displayFont = Cormorant_Garamond({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const sansFont = Manrope({
+const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -55,7 +49,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#efede8" },
+    { media: "(prefers-color-scheme: light)", color: "#e8e6e2" },
     { media: "(prefers-color-scheme: dark)", color: "#161616" },
   ],
   width: "device-width",
@@ -70,10 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="pt-BR"
-      className={`${displayFont.variable} ${sansFont.variable} h-full antialiased`}
-    >
+    <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         {children}
         <PwaRegister />
