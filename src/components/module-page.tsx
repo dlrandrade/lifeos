@@ -118,11 +118,11 @@ export function ModulePage({
         </article>
 
         <article className="rounded-[1.8rem] bg-[#ebe4d8] p-5">
-          <p className="text-xs uppercase tracking-[0.22em] text-muted">Prisma</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-muted">Supabase</p>
           <h3 className="headline mt-3 text-3xl leading-none">schema modelado</h3>
           <p className="mt-4 text-sm leading-6 text-muted">
             O schema inicial ja contem o modelo relacional para este modulo em
-            `prisma/schema.prisma`.
+            `supabase/migrations/0001_initial.sql`.
           </p>
         </article>
       </aside>

@@ -59,7 +59,7 @@ export function AppShell({ children }: AppShellProps) {
             <p className="text-xs uppercase tracking-[0.22em] text-white/55">
               Estrutura pronta
             </p>
-            <p className="headline mt-3 text-3xl leading-none">Prisma + Next.js</p>
+            <p className="headline mt-3 text-3xl leading-none">Supabase + Next.js</p>
             <p className="mt-3 text-sm leading-6 text-white/72">
               Base inicial pronta para receber autenticacao, migrations e dados reais.
             </p>

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { db } from "@/lib/db";
 import { getCurrentUserContext } from "@/server/app-data";
 
 const nonEmptyText = z.string().trim().min(1);
@@ -17,123 +16,55 @@ function readId(formData: FormData, key: string) {
   return nonEmptyText.parse(readText(formData, key));
 }
 
-async function ensureTaskOwner(taskId: string, userId: string) {
-  await db.task.findFirstOrThrow({ where: { id: taskId, userId } });
+function todayDateIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
 }
 
-async function ensureWaterLogOwner(logId: string, userId: string) {
-  await db.waterLog.findFirstOrThrow({ where: { id: logId, userId } });
-}
-
-async function ensureAppointmentOwner(appointmentId: string, userId: string) {
-  await db.appointment.findFirstOrThrow({ where: { id: appointmentId, userId } });
-}
-
-async function ensureReminderOwner(reminderId: string, userId: string) {
-  await db.reminder.findFirstOrThrow({ where: { id: reminderId, userId } });
-}
-
-async function ensureBookOwner(bookId: string, userId: string) {
-  await db.book.findFirstOrThrow({ where: { id: bookId, userId } });
-}
-
-async function ensureMovieOwner(movieId: string, userId: string) {
-  await db.movie.findFirstOrThrow({ where: { id: movieId, userId } });
-}
-
-async function ensureWorkoutPlanOwner(planId: string, userId: string) {
-  await db.workoutPlan.findFirstOrThrow({ where: { id: planId, userId } });
-}
-
-async function ensureWorkoutDayOwner(dayId: string, userId: string) {
-  await db.workoutDay.findFirstOrThrow({
-    where: {
-      id: dayId,
-      workoutPlan: { userId },
-    },
-  });
-}
-
-async function ensureWorkoutExerciseOwner(exerciseId: string, userId: string) {
-  await db.workoutExercise.findFirstOrThrow({
-    where: {
-      id: exerciseId,
-      workoutDay: { workoutPlan: { userId } },
-    },
-  });
-}
-
-async function ensureMealPlanOwner(planId: string, userId: string) {
-  await db.mealPlan.findFirstOrThrow({ where: { id: planId, userId } });
-}
-
-async function ensureMealSectionOwner(sectionId: string, userId: string) {
-  await db.mealSection.findFirstOrThrow({
-    where: {
-      id: sectionId,
-      mealPlan: { userId },
-    },
-  });
-}
-
-async function ensureMealItemOwner(itemId: string, userId: string) {
-  await db.mealItem.findFirstOrThrow({
-    where: {
-      id: itemId,
-      mealSection: { mealPlan: { userId } },
-    },
-  });
-}
+// ---------- Tasks ----------
 
 export async function createTask(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.task.create({
-    data: {
-      userId,
-      title,
-      isRecurring: true,
-    },
+  const { error } = await supabase.from("tasks").insert({
+    user_id: userId,
+    title,
+    is_recurring: true,
   });
+  if (error) throw new Error(`createTask: ${error.message}`);
 
   revalidatePath("/dashboard");
 }
 
 export async function toggleTaskForToday(formData: FormData) {
   const taskId = readId(formData, "taskId");
-  const { userId } = await getCurrentUserContext();
-  await ensureTaskOwner(taskId, userId);
-  const occurredOn = new Date();
-  occurredOn.setHours(0, 0, 0, 0);
+  const { userId, supabase } = await getCurrentUserContext();
+  const occurredOn = todayDateIso();
 
-  const existing = await db.taskLog.findUnique({
-    where: {
-      taskId_occurredOn: {
-        taskId,
-        occurredOn,
-      },
-    },
-  });
+  const { data: existing, error: selErr } = await supabase
+    .from("task_logs")
+    .select("id")
+    .eq("task_id", taskId)
+    .eq("occurred_on", occurredOn)
+    .maybeSingle();
+  if (selErr) throw new Error(`toggleTaskForToday: ${selErr.message}`);
 
   if (existing) {
-    await db.taskLog.delete({
-      where: {
-        taskId_occurredOn: {
-          taskId,
-          occurredOn,
-        },
-      },
-    });
+    const { error } = await supabase
+      .from("task_logs")
+      .delete()
+      .eq("id", existing.id);
+    if (error) throw new Error(`toggleTaskForToday: ${error.message}`);
   } else {
-    await db.taskLog.create({
-      data: {
-        userId,
-        taskId,
-        occurredOn,
-        completed: true,
-      },
+    const { error } = await supabase.from("task_logs").insert({
+      user_id: userId,
+      task_id: taskId,
+      occurred_on: occurredOn,
+      completed: true,
     });
+    if (error) throw new Error(`toggleTaskForToday: ${error.message}`);
   }
 
   revalidatePath("/dashboard");
@@ -141,27 +72,30 @@ export async function toggleTaskForToday(formData: FormData) {
 
 export async function deleteTask(formData: FormData) {
   const taskId = readId(formData, "taskId");
-  const { userId } = await getCurrentUserContext();
-  await ensureTaskOwner(taskId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.task.delete({
-    where: { id: taskId },
-  });
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+  if (error) throw new Error(`deleteTask: ${error.message}`);
 
   revalidatePath("/dashboard");
 }
 
-export async function addWaterLog(formData: FormData) {
-  const amountMl = z.coerce.number().int().positive().parse(readText(formData, "amountMl"));
-  const { userId } = await getCurrentUserContext();
+// ---------- Water ----------
 
-  await db.waterLog.create({
-    data: {
-      userId,
-      amountMl,
-      occurredAt: new Date(),
-    },
+export async function addWaterLog(formData: FormData) {
+  const amountMl = z.coerce
+    .number()
+    .int()
+    .positive()
+    .parse(readText(formData, "amountMl"));
+  const { userId, supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase.from("water_logs").insert({
+    user_id: userId,
+    amount_ml: amountMl,
+    occurred_at: new Date().toISOString(),
   });
+  if (error) throw new Error(`addWaterLog: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/hidratacao");
@@ -169,29 +103,28 @@ export async function addWaterLog(formData: FormData) {
 
 export async function deleteWaterLog(formData: FormData) {
   const logId = readId(formData, "logId");
-  const { userId } = await getCurrentUserContext();
-  await ensureWaterLogOwner(logId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.waterLog.delete({
-    where: { id: logId },
-  });
+  const { error } = await supabase.from("water_logs").delete().eq("id", logId);
+  if (error) throw new Error(`deleteWaterLog: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/hidratacao");
 }
 
+// ---------- Appointments ----------
+
 export async function createAppointment(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
   const startsAt = z.coerce.date().parse(readText(formData, "startsAt"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.appointment.create({
-    data: {
-      userId,
-      title,
-      startsAt,
-    },
+  const { error } = await supabase.from("appointments").insert({
+    user_id: userId,
+    title,
+    starts_at: startsAt.toISOString(),
   });
+  if (error) throw new Error(`createAppointment: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/compromissos");
@@ -199,14 +132,16 @@ export async function createAppointment(formData: FormData) {
 
 export async function updateAppointmentStatus(formData: FormData) {
   const appointmentId = readId(formData, "appointmentId");
-  const status = z.enum(["SCHEDULED", "DONE", "CANCELED"]).parse(readText(formData, "status"));
-  const { userId } = await getCurrentUserContext();
-  await ensureAppointmentOwner(appointmentId, userId);
+  const status = z
+    .enum(["SCHEDULED", "DONE", "CANCELED"])
+    .parse(readText(formData, "status"));
+  const { supabase } = await getCurrentUserContext();
 
-  await db.appointment.update({
-    where: { id: appointmentId },
-    data: { status },
-  });
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status })
+    .eq("id", appointmentId);
+  if (error) throw new Error(`updateAppointmentStatus: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/compromissos");
@@ -214,97 +149,103 @@ export async function updateAppointmentStatus(formData: FormData) {
 
 export async function deleteAppointment(formData: FormData) {
   const appointmentId = readId(formData, "appointmentId");
-  const { userId } = await getCurrentUserContext();
-  await ensureAppointmentOwner(appointmentId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.appointment.delete({
-    where: { id: appointmentId },
-  });
+  const { error } = await supabase
+    .from("appointments")
+    .delete()
+    .eq("id", appointmentId);
+  if (error) throw new Error(`deleteAppointment: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/compromissos");
 }
 
+// ---------- Reminders ----------
+
 export async function createReminder(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.reminder.create({
-    data: {
-      userId,
-      title,
-    },
+  const { error } = await supabase.from("reminders").insert({
+    user_id: userId,
+    title,
   });
+  if (error) throw new Error(`createReminder: ${error.message}`);
 
   revalidatePath("/lembretes");
 }
 
 export async function updateReminderStatus(formData: FormData) {
   const reminderId = readId(formData, "reminderId");
-  const status = z.enum(["PENDING", "DONE", "CANCELED"]).parse(readText(formData, "status"));
-  const { userId } = await getCurrentUserContext();
-  await ensureReminderOwner(reminderId, userId);
+  const status = z
+    .enum(["PENDING", "DONE", "CANCELED"])
+    .parse(readText(formData, "status"));
+  const { supabase } = await getCurrentUserContext();
 
-  await db.reminder.update({
-    where: { id: reminderId },
-    data: { status },
-  });
+  const { error } = await supabase
+    .from("reminders")
+    .update({ status })
+    .eq("id", reminderId);
+  if (error) throw new Error(`updateReminderStatus: ${error.message}`);
 
   revalidatePath("/lembretes");
 }
 
 export async function deleteReminder(formData: FormData) {
   const reminderId = readId(formData, "reminderId");
-  const { userId } = await getCurrentUserContext();
-  await ensureReminderOwner(reminderId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.reminder.delete({
-    where: { id: reminderId },
-  });
+  const { error } = await supabase
+    .from("reminders")
+    .delete()
+    .eq("id", reminderId);
+  if (error) throw new Error(`deleteReminder: ${error.message}`);
 
   revalidatePath("/lembretes");
 }
 
+// ---------- Books ----------
+
 export async function createBook(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
   const author = optionalText.parse(readText(formData, "author"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.book.create({
-    data: {
-      userId,
-      title,
-      author: author || null,
-    },
+  const { error } = await supabase.from("books").insert({
+    user_id: userId,
+    title,
+    author: author || null,
   });
+  if (error) throw new Error(`createBook: ${error.message}`);
 
   revalidatePath("/livros");
 }
 
 export async function updateBookStatus(formData: FormData) {
   const bookId = readId(formData, "bookId");
-  const status = z.enum(["TO_READ", "READING", "FINISHED", "ABANDONED"]).parse(
-    readText(formData, "status"),
-  );
-  const { userId } = await getCurrentUserContext();
-  await ensureBookOwner(bookId, userId);
+  const status = z
+    .enum(["TO_READ", "READING", "FINISHED", "ABANDONED"])
+    .parse(readText(formData, "status"));
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.book.update({
-    where: { id: bookId },
-    data: {
-      status,
-      startedAt: status === "READING" ? new Date() : undefined,
-      finishedAt: status === "FINISHED" ? new Date() : status === "READING" ? null : undefined,
-    },
-  });
+  const update: Record<string, string | null> = { status };
+  if (status === "READING") update.started_at = new Date().toISOString();
+  if (status === "FINISHED") update.finished_at = new Date().toISOString();
+  if (status === "READING") update.finished_at = null;
 
-  await db.bookLog.create({
-    data: {
-      userId,
-      bookId,
-      status,
-    },
+  const { error: updErr } = await supabase
+    .from("books")
+    .update(update)
+    .eq("id", bookId);
+  if (updErr) throw new Error(`updateBookStatus: ${updErr.message}`);
+
+  const { error: logErr } = await supabase.from("book_logs").insert({
+    user_id: userId,
+    book_id: bookId,
+    status,
   });
+  if (logErr) throw new Error(`updateBookStatus(log): ${logErr.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/livros");
@@ -312,83 +253,80 @@ export async function updateBookStatus(formData: FormData) {
 
 export async function deleteBook(formData: FormData) {
   const bookId = readId(formData, "bookId");
-  const { userId } = await getCurrentUserContext();
-  await ensureBookOwner(bookId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.book.delete({
-    where: { id: bookId },
-  });
+  const { error } = await supabase.from("books").delete().eq("id", bookId);
+  if (error) throw new Error(`deleteBook: ${error.message}`);
 
   revalidatePath("/dashboard");
   revalidatePath("/livros");
 }
 
+// ---------- Movies ----------
+
 export async function createMovie(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
   const genre = optionalText.parse(readText(formData, "genre"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.movie.create({
-    data: {
-      userId,
-      title,
-      genre: genre || null,
-    },
+  const { error } = await supabase.from("movies").insert({
+    user_id: userId,
+    title,
+    genre: genre || null,
   });
+  if (error) throw new Error(`createMovie: ${error.message}`);
 
   revalidatePath("/filmes");
 }
 
 export async function updateMovieStatus(formData: FormData) {
   const movieId = readId(formData, "movieId");
-  const status = z.enum(["TO_WATCH", "WATCHING", "WATCHED", "ABANDONED"]).parse(
-    readText(formData, "status"),
-  );
-  const { userId } = await getCurrentUserContext();
-  await ensureMovieOwner(movieId, userId);
+  const status = z
+    .enum(["TO_WATCH", "WATCHING", "WATCHED", "ABANDONED"])
+    .parse(readText(formData, "status"));
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.movie.update({
-    where: { id: movieId },
-    data: {
+  const { error: updErr } = await supabase
+    .from("movies")
+    .update({
       status,
-      watchedAt: status === "WATCHED" ? new Date() : null,
-    },
-  });
+      watched_at: status === "WATCHED" ? new Date().toISOString() : null,
+    })
+    .eq("id", movieId);
+  if (updErr) throw new Error(`updateMovieStatus: ${updErr.message}`);
 
-  await db.movieLog.create({
-    data: {
-      userId,
-      movieId,
-      status,
-    },
+  const { error: logErr } = await supabase.from("movie_logs").insert({
+    user_id: userId,
+    movie_id: movieId,
+    status,
   });
+  if (logErr) throw new Error(`updateMovieStatus(log): ${logErr.message}`);
 
   revalidatePath("/filmes");
 }
 
 export async function deleteMovie(formData: FormData) {
   const movieId = readId(formData, "movieId");
-  const { userId } = await getCurrentUserContext();
-  await ensureMovieOwner(movieId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.movie.delete({
-    where: { id: movieId },
-  });
+  const { error } = await supabase.from("movies").delete().eq("id", movieId);
+  if (error) throw new Error(`deleteMovie: ${error.message}`);
 
   revalidatePath("/filmes");
 }
 
+// ---------- Workouts ----------
+
 export async function createWorkoutPlan(formData: FormData) {
   const name = nonEmptyText.parse(readText(formData, "name"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.workoutPlan.create({
-    data: {
-      userId,
-      name,
-      isActive: true,
-    },
+  const { error } = await supabase.from("workout_plans").insert({
+    user_id: userId,
+    name,
+    is_active: true,
   });
+  if (error) throw new Error(`createWorkoutPlan: ${error.message}`);
 
   revalidatePath("/treinos");
   revalidatePath("/dashboard");
@@ -396,12 +334,13 @@ export async function createWorkoutPlan(formData: FormData) {
 
 export async function deleteWorkoutPlan(formData: FormData) {
   const planId = readId(formData, "planId");
-  const { userId } = await getCurrentUserContext();
-  await ensureWorkoutPlanOwner(planId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.workoutPlan.delete({
-    where: { id: planId },
-  });
+  const { error } = await supabase
+    .from("workout_plans")
+    .delete()
+    .eq("id", planId);
+  if (error) throw new Error(`deleteWorkoutPlan: ${error.message}`);
 
   revalidatePath("/treinos");
   revalidatePath("/dashboard");
@@ -410,64 +349,76 @@ export async function deleteWorkoutPlan(formData: FormData) {
 export async function createWorkoutDay(formData: FormData) {
   const planId = readId(formData, "planId");
   const title = nonEmptyText.parse(readText(formData, "title"));
-  const weekDay = z.coerce.number().int().min(0).max(6).parse(readText(formData, "weekDay"));
-  const { userId } = await getCurrentUserContext();
-  await ensureWorkoutPlanOwner(planId, userId);
+  const weekDay = z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(6)
+    .parse(readText(formData, "weekDay"));
+  const { supabase } = await getCurrentUserContext();
 
-  await db.workoutDay.create({
-    data: {
-      workoutPlanId: planId,
-      title,
-      weekDay,
-    },
+  const { error } = await supabase.from("workout_days").insert({
+    workout_plan_id: planId,
+    title,
+    week_day: weekDay,
   });
+  if (error) throw new Error(`createWorkoutDay: ${error.message}`);
 
   revalidatePath("/treinos");
 }
 
 export async function deleteWorkoutDay(formData: FormData) {
   const dayId = readId(formData, "dayId");
-  const { userId } = await getCurrentUserContext();
-  await ensureWorkoutDayOwner(dayId, userId);
-  await db.workoutDay.delete({ where: { id: dayId } });
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase
+    .from("workout_days")
+    .delete()
+    .eq("id", dayId);
+  if (error) throw new Error(`deleteWorkoutDay: ${error.message}`);
+
   revalidatePath("/treinos");
 }
 
 export async function createWorkoutExercise(formData: FormData) {
   const dayId = readId(formData, "dayId");
   const name = nonEmptyText.parse(readText(formData, "name"));
-  const { userId } = await getCurrentUserContext();
-  await ensureWorkoutDayOwner(dayId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.workoutExercise.create({
-    data: {
-      workoutDayId: dayId,
-      name,
-    },
+  const { error } = await supabase.from("workout_exercises").insert({
+    workout_day_id: dayId,
+    name,
   });
+  if (error) throw new Error(`createWorkoutExercise: ${error.message}`);
 
   revalidatePath("/treinos");
 }
 
 export async function deleteWorkoutExercise(formData: FormData) {
   const exerciseId = readId(formData, "exerciseId");
-  const { userId } = await getCurrentUserContext();
-  await ensureWorkoutExerciseOwner(exerciseId, userId);
-  await db.workoutExercise.delete({ where: { id: exerciseId } });
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase
+    .from("workout_exercises")
+    .delete()
+    .eq("id", exerciseId);
+  if (error) throw new Error(`deleteWorkoutExercise: ${error.message}`);
+
   revalidatePath("/treinos");
 }
 
+// ---------- Meals ----------
+
 export async function createMealPlan(formData: FormData) {
   const name = nonEmptyText.parse(readText(formData, "name"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.mealPlan.create({
-    data: {
-      userId,
-      name,
-      isActive: true,
-    },
+  const { error } = await supabase.from("meal_plans").insert({
+    user_id: userId,
+    name,
+    is_active: true,
   });
+  if (error) throw new Error(`createMealPlan: ${error.message}`);
 
   revalidatePath("/dieta");
   revalidatePath("/dashboard");
@@ -475,12 +426,13 @@ export async function createMealPlan(formData: FormData) {
 
 export async function deleteMealPlan(formData: FormData) {
   const planId = readId(formData, "planId");
-  const { userId } = await getCurrentUserContext();
-  await ensureMealPlanOwner(planId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.mealPlan.delete({
-    where: { id: planId },
-  });
+  const { error } = await supabase
+    .from("meal_plans")
+    .delete()
+    .eq("id", planId);
+  if (error) throw new Error(`deleteMealPlan: ${error.message}`);
 
   revalidatePath("/dieta");
   revalidatePath("/dashboard");
@@ -489,77 +441,83 @@ export async function deleteMealPlan(formData: FormData) {
 export async function createMealSection(formData: FormData) {
   const planId = readId(formData, "planId");
   const title = nonEmptyText.parse(readText(formData, "title"));
-  const { userId } = await getCurrentUserContext();
-  await ensureMealPlanOwner(planId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.mealSection.create({
-    data: {
-      mealPlanId: planId,
-      title,
-    },
+  const { error } = await supabase.from("meal_sections").insert({
+    meal_plan_id: planId,
+    title,
   });
+  if (error) throw new Error(`createMealSection: ${error.message}`);
 
   revalidatePath("/dieta");
 }
 
 export async function deleteMealSection(formData: FormData) {
   const sectionId = readId(formData, "sectionId");
-  const { userId } = await getCurrentUserContext();
-  await ensureMealSectionOwner(sectionId, userId);
-  await db.mealSection.delete({ where: { id: sectionId } });
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase
+    .from("meal_sections")
+    .delete()
+    .eq("id", sectionId);
+  if (error) throw new Error(`deleteMealSection: ${error.message}`);
+
   revalidatePath("/dieta");
 }
 
 export async function createMealItem(formData: FormData) {
   const sectionId = readId(formData, "sectionId");
   const description = nonEmptyText.parse(readText(formData, "description"));
-  const { userId } = await getCurrentUserContext();
-  await ensureMealSectionOwner(sectionId, userId);
+  const { supabase } = await getCurrentUserContext();
 
-  await db.mealItem.create({
-    data: {
-      mealSectionId: sectionId,
-      description,
-    },
+  const { error } = await supabase.from("meal_items").insert({
+    meal_section_id: sectionId,
+    description,
   });
+  if (error) throw new Error(`createMealItem: ${error.message}`);
 
   revalidatePath("/dieta");
 }
 
 export async function deleteMealItem(formData: FormData) {
   const itemId = readId(formData, "itemId");
-  const { userId } = await getCurrentUserContext();
-  await ensureMealItemOwner(itemId, userId);
-  await db.mealItem.delete({ where: { id: itemId } });
+  const { supabase } = await getCurrentUserContext();
+
+  const { error } = await supabase
+    .from("meal_items")
+    .delete()
+    .eq("id", itemId);
+  if (error) throw new Error(`deleteMealItem: ${error.message}`);
+
   revalidatePath("/dieta");
 }
 
+// ---------- Medications & Exams ----------
+
 export async function createMedication(formData: FormData) {
   const name = nonEmptyText.parse(readText(formData, "name"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.medication.create({
-    data: {
-      userId,
-      name,
-      frequencyType: "DAILY",
-    },
+  const { error } = await supabase.from("medications").insert({
+    user_id: userId,
+    name,
+    frequency_type: "DAILY",
   });
+  if (error) throw new Error(`createMedication: ${error.message}`);
 
   revalidatePath("/remedios");
 }
 
 export async function createExam(formData: FormData) {
   const name = nonEmptyText.parse(readText(formData, "name"));
-  const { userId } = await getCurrentUserContext();
+  const { userId, supabase } = await getCurrentUserContext();
 
-  await db.exam.create({
-    data: {
-      userId,
-      name,
-      currentStatus: "PLANNED",
-    },
+  const { error } = await supabase.from("exams").insert({
+    user_id: userId,
+    name,
+    current_status: "PLANNED",
   });
+  if (error) throw new Error(`createExam: ${error.message}`);
 
   revalidatePath("/exames");
 }
