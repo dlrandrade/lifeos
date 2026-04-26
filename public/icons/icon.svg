@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="lst logo">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="20%" r="100%">
+      <stop offset="0%" stop-color="#1f1f1f"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <g fill="#f8f3eb" font-family="'Cormorant Garamond', 'Times New Roman', serif" font-weight="600">
+    <text x="50%" y="60%" text-anchor="middle" font-size="280" letter-spacing="-12">lst</text>
+  </g>
+  <circle cx="384" cy="128" r="22" fill="#f8f3eb"/>
+</svg>
