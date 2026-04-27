@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "lst — hub pessoal",
-    short_name: "lst",
+    name: "lifeOS",
+    short_name: "lifeOS",
     description:
-      "Rotina, saude e memoria pessoal: dashboard, treinos, dieta, livros, filmes, hidratacao, compromissos, lembretes, remedios e exames.",
+      "Hub pessoal de rotina, saude, leitura e organizacao. Tarefas, treinos, dieta, livros, filmes, hidratacao, compromissos, lembretes, remedios e exames.",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#efede8",
+    background_color: "#e8e6e2",
     theme_color: "#161616",
     lang: "pt-BR",
     dir: "ltr",
@@ -48,30 +48,10 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
     shortcuts: [
-      {
-        name: "Dashboard",
-        short_name: "Hoje",
-        description: "Resumo do dia",
-        url: "/dashboard",
-      },
-      {
-        name: "Hidratacao",
-        short_name: "Agua",
-        description: "Registrar consumo de agua",
-        url: "/hidratacao",
-      },
-      {
-        name: "Compromissos",
-        short_name: "Agenda",
-        description: "Agenda do dia",
-        url: "/compromissos",
-      },
-      {
-        name: "Lembretes",
-        short_name: "Lembretes",
-        description: "Pendencias e lembretes",
-        url: "/lembretes",
-      },
+      { name: "Dashboard", short_name: "Hoje", url: "/dashboard" },
+      { name: "Hidratacao", short_name: "Agua", url: "/hidratacao" },
+      { name: "Compromissos", short_name: "Agenda", url: "/compromissos" },
+      { name: "Lembretes", short_name: "Lembretes", url: "/lembretes" },
     ],
   };
 }

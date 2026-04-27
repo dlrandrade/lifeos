@@ -78,26 +78,37 @@ function BookRow({
     title: string;
     author: string | null;
     status: string;
+    cover_url?: string | null;
   };
   active?: boolean;
   faded?: boolean;
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div
-          className={`text-base font-bold ${
-            faded ? "text-[var(--text-muted)]" : ""
-          }`}
-        >
-          {book.title}
-        </div>
-        <div
-          className={`text-sm ${
-            faded ? "text-[var(--text-muted)]" : "text-[var(--text-soft)]"
-          }`}
-        >
-          {book.author ?? "Autor indefinido"}
+      <div className="flex items-start gap-3 min-w-0">
+        {book.cover_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={book.cover_url}
+            alt={book.title}
+            className={`h-14 w-10 rounded-md object-cover flex-shrink-0 ${faded ? "opacity-50" : ""}`}
+          />
+        ) : null}
+        <div className="min-w-0">
+          <div
+            className={`text-base font-bold ${
+              faded ? "text-[var(--text-muted)]" : ""
+            }`}
+          >
+            {book.title}
+          </div>
+          <div
+            className={`text-sm ${
+              faded ? "text-[var(--text-muted)]" : "text-[var(--text-soft)]"
+            }`}
+          >
+            {book.author ?? "Autor indefinido"}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2">

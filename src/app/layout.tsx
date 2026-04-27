@@ -8,7 +8,7 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const APP_NAME = "lst";
+const APP_NAME = "lifeOS";
 const APP_DESCRIPTION =
   "Hub pessoal de rotina, saude e organizacao: dashboard, treinos, dieta, livros, filmes, hidratacao, compromissos, lembretes, remedios e exames.";
 

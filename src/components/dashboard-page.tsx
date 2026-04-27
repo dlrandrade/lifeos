@@ -1,41 +1,83 @@
 import Link from "next/link";
-import { BookOpen, Dumbbell, Pencil, Plus, Search, Trash2, Utensils } from "lucide-react";
+import {
+  Bell,
+  BookOpen,
+  CalendarDays,
+  Droplets,
+  Dumbbell,
+  Film,
+  HeartPulse,
+  type LucideIcon,
+  Pencil,
+  Pill,
+  Plus,
+  Search,
+  TestTubeDiagonal,
+  Trash2,
+  Utensils,
+} from "lucide-react";
 import { CheckButton } from "@/components/check-button";
+import { CreateBoardCard } from "@/components/create-board-card";
 import {
   createTask,
   deleteTask,
   toggleTaskForToday,
   updateTask,
 } from "@/server/actions";
-import { PageShell } from "@/components/page-shell";
+import { buildGreeting } from "@/lib/greeting";
 
-type DashboardPageProps = {
-  data: {
-    userName: string;
-    tasks: Array<{ id: string; title: string; completed: boolean }>;
-    todayWorkoutTitle: string | null;
-    currentBookTitle: string | null;
-    currentBookAuthor: string | null;
-    nextMealTitle: string | null;
+type DashboardData = {
+  userName: string;
+  pendingTasks: number;
+  doneTasks: number;
+  hasWorkoutToday: boolean;
+  waterPct: number;
+  upcomingAppointment: string | null;
+  pendingReminders: number;
+  categories: {
+    todayWorkout: string | null;
+    currentBook: { title: string; author: string | null } | null;
+    nextMeal: string | null;
+    water: { consumed: number; goal: number };
+    nextAppointment: { title: string; time: string } | null;
+    pendingReminders: number;
+    activeMedicationsCount: number;
+    pendingExamsCount: number;
+    nextMovie: { id: string; title: string } | null;
   };
+  boards: Array<{ id: string; name: string; model: string; icon: string | null }>;
+  tasks: Array<{ id: string; title: string; completed: boolean }>;
 };
 
-export function DashboardPage({ data }: DashboardPageProps) {
+export function DashboardPage({ data }: { data: DashboardData }) {
+  const now = new Date();
+  const greeting = buildGreeting({
+    firstName: data.userName,
+    hour: now.getHours(),
+    weekDay: now.getDay(),
+    pendingTasks: data.pendingTasks,
+    doneTasks: data.doneTasks,
+    hasWorkoutToday: data.hasWorkoutToday,
+    waterPct: data.waterPct,
+    upcomingAppointment: data.upcomingAppointment,
+    pendingReminders: data.pendingReminders,
+  });
+
+  const cats = data.categories;
+
   return (
-    <PageShell hideLogo rightSlot={<span className="text-2xl font-bold tracking-tight">lst</span>}>
-      <h1 className="mt-8 text-4xl leading-[1.1] tracking-tight sm:text-5xl">
-        <span className="text-[var(--text-soft)]">E ai, {data.userName},</span>
+    <div className="rounded-[2rem] bg-[var(--shell)] px-5 py-6 sm:px-7 sm:py-8 shadow-sm">
+      <div className="flex items-center justify-end">
+        <span className="text-2xl font-bold tracking-tight">lifeOS</span>
+      </div>
+
+      <h1 className="mt-8 text-3xl leading-[1.15] tracking-tight sm:text-4xl">
+        <span className="text-[var(--text-soft)]">{greeting.salutation}</span>
         <br />
-        <span className="font-bold">Muita coisa pra fazer hoje? Que tal comecar agora?</span>
+        <span className="font-bold">{greeting.hook}</span>
       </h1>
 
-      <div className="mt-10 space-y-4">
-        {data.tasks.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">
-            Sem tarefas ainda. Adicione abaixo.
-          </p>
-        ) : null}
-
+      <div className="mt-8 space-y-3">
         {data.tasks.map((task) => (
           <div
             key={task.id}
@@ -49,7 +91,7 @@ export function DashboardPage({ data }: DashboardPageProps) {
                 ariaLabel={task.completed ? "Desmarcar tarefa" : "Concluir tarefa"}
               />
               <span
-                className={`truncate text-lg ${
+                className={`truncate text-base sm:text-lg ${
                   task.completed
                     ? "text-[var(--text-muted)] line-through"
                     : "text-[var(--text-soft)]"
@@ -93,7 +135,7 @@ export function DashboardPage({ data }: DashboardPageProps) {
           </div>
         ))}
 
-        <form action={createTask} className="flex items-center gap-3 pt-2">
+        <form action={createTask} className="flex items-center gap-3 pt-1">
           <button
             type="submit"
             aria-label="Adicionar tarefa"
@@ -110,26 +152,10 @@ export function DashboardPage({ data }: DashboardPageProps) {
         </form>
       </div>
 
-      <div className="mt-10 grid grid-cols-3 gap-3">
-        <ModuleCard
-          href="/treinos"
-          icon={<Dumbbell className="h-5 w-5" strokeWidth={1.7} />}
-          title="Treino"
-          subtitle={data.todayWorkoutTitle ?? "de hoje"}
-        />
-        <ModuleCard
-          href="/livros"
-          icon={<BookOpen className="h-5 w-5" strokeWidth={1.7} />}
-          title={data.currentBookTitle ?? "Livros"}
-          subtitle={data.currentBookAuthor ?? "leitura atual"}
-        />
-        <ModuleCard
-          href="/dieta"
-          icon={<Utensils className="h-5 w-5" strokeWidth={1.7} />}
-          title={data.nextMealTitle ?? "Dieta"}
-          subtitle={data.nextMealTitle ? "da Manha" : "ativa"}
-        />
-      </div>
+      <CategoryCarousel
+        cats={cats}
+        boards={data.boards}
+      />
 
       <div className="mt-6 flex items-center gap-3 rounded-full bg-[var(--card)] px-5 py-3 text-[var(--text-muted)] shadow-sm">
         <input
@@ -139,27 +165,137 @@ export function DashboardPage({ data }: DashboardPageProps) {
         />
         <Search className="h-4 w-4" strokeWidth={1.7} />
       </div>
-    </PageShell>
+    </div>
   );
 }
 
-function ModuleCard({
+const BOARD_ICONS: Record<string, LucideIcon> = {
+  HeartPulse,
+  Dumbbell,
+  Utensils,
+  BookOpen,
+  Film,
+  Droplets,
+  CalendarDays,
+  Bell,
+  Pill,
+  TestTubeDiagonal,
+};
+
+function CategoryCarousel({
+  cats,
+  boards,
+}: {
+  cats: DashboardData["categories"];
+  boards: DashboardData["boards"];
+}) {
+  return (
+    <div className="mt-10 -mx-5 sm:-mx-7">
+      <div className="flex gap-3 overflow-x-auto px-5 sm:px-7 pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <CatCard
+          href="/treinos"
+          Icon={Dumbbell}
+          title="Treino"
+          subtitle={cats.todayWorkout ?? "de hoje"}
+        />
+        <CatCard
+          href="/livros"
+          Icon={BookOpen}
+          title={cats.currentBook?.title ?? "Livros"}
+          subtitle={cats.currentBook?.author ?? "leitura atual"}
+        />
+        <CatCard
+          href="/dieta"
+          Icon={Utensils}
+          title={cats.nextMeal ?? "Dieta"}
+          subtitle={cats.nextMeal ? "da Manha" : "ativa"}
+        />
+        <CatCard
+          href="/hidratacao"
+          Icon={Droplets}
+          title={`${cats.water.consumed}ml`}
+          subtitle={`/ ${cats.water.goal}ml`}
+        />
+        <CatCard
+          href="/compromissos"
+          Icon={CalendarDays}
+          title={cats.nextAppointment?.title ?? "Compromissos"}
+          subtitle={cats.nextAppointment?.time ?? "agenda"}
+        />
+        <CatCard
+          href="/lembretes"
+          Icon={Bell}
+          title="Lembretes"
+          subtitle={
+            cats.pendingReminders > 0
+              ? `${cats.pendingReminders} pendentes`
+              : "sem pendencias"
+          }
+        />
+        <CatCard
+          href="/remedios"
+          Icon={Pill}
+          title="Remedios"
+          subtitle={
+            cats.activeMedicationsCount > 0
+              ? `${cats.activeMedicationsCount} ativos`
+              : "nenhum"
+          }
+        />
+        <CatCard
+          href="/exames"
+          Icon={TestTubeDiagonal}
+          title="Exames"
+          subtitle={
+            cats.pendingExamsCount > 0
+              ? `${cats.pendingExamsCount} pendentes`
+              : "em dia"
+          }
+        />
+        <CatCard
+          href="/filmes"
+          Icon={Film}
+          title={cats.nextMovie?.title ?? "Filmes"}
+          subtitle="fila"
+        />
+
+        {boards.map((board) => {
+          const Icon: LucideIcon =
+            (board.icon ? BOARD_ICONS[board.icon] : undefined) ?? HeartPulse;
+          return (
+            <CatCard
+              key={board.id}
+              href={`/lista/${board.id}`}
+              Icon={Icon}
+              title={board.name}
+              subtitle={board.model.toLowerCase()}
+            />
+          );
+        })}
+
+        <CreateBoardCard />
+      </div>
+    </div>
+  );
+}
+
+function CatCard({
   href,
-  icon,
+  Icon,
   title,
   subtitle,
 }: {
   href: string;
-  icon: React.ReactNode;
+  Icon: LucideIcon;
   title: string;
   subtitle: string;
 }) {
   return (
     <Link
       href={href}
-      className="flex flex-col rounded-[1.5rem] bg-[var(--card)] px-4 py-4 shadow-sm hover:shadow-md transition"
+      className="snap-start shrink-0 w-[140px] flex flex-col rounded-[1.5rem] bg-[var(--card)] px-4 py-4 shadow-sm hover:shadow-md transition"
     >
-      <span className="text-[var(--text-soft)]">{icon}</span>
+      <Icon className="h-5 w-5 text-[var(--text-soft)]" strokeWidth={1.7} />
       <span className="mt-8 truncate text-sm font-bold">{title}</span>
       <span className="truncate text-sm text-[var(--text-soft)]">{subtitle}</span>
     </Link>

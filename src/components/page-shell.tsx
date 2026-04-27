@@ -20,10 +20,10 @@ export function PageShell({ icon: Icon, hideLogo, rightSlot, children }: PageShe
         ) : (
           <Link
             href="/dashboard"
-            aria-label="lst"
+            aria-label="lifeOS"
             className="text-2xl font-bold tracking-tight"
           >
-            lst
+            lifeOS
           </Link>
         )}
       </div>

@@ -1,8 +1,10 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUserContext } from "@/server/app-data";
+import { fetchBookCover } from "@/lib/openlibrary";
 
 const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional();
@@ -226,10 +228,13 @@ export async function createBook(formData: FormData) {
   const author = optionalText.parse(readText(formData, "author"));
   const { userId, supabase } = await getCurrentUserContext();
 
+  const cover = await fetchBookCover(title, author).catch(() => null);
+
   const { error } = await supabase.from("books").insert({
     user_id: userId,
     title,
     author: author || null,
+    cover_url: cover,
   });
   if (error) throw new Error(`createBook: ${error.message}`);
 
@@ -696,10 +701,16 @@ export async function updateBook(formData: FormData) {
   const title = nonEmptyText.parse(readText(formData, "title"));
   const author = optionalText.parse(readText(formData, "author"));
   const { supabase } = await getCurrentUserContext();
-  const { error } = await supabase
-    .from("books")
-    .update({ title, author: author || null })
-    .eq("id", bookId);
+
+  const cover = await fetchBookCover(title, author).catch(() => null);
+
+  const update: Record<string, string | null> = {
+    title,
+    author: author || null,
+  };
+  if (cover) update.cover_url = cover;
+
+  const { error } = await supabase.from("books").update(update).eq("id", bookId);
   if (error) throw new Error(`updateBook: ${error.message}`);
   revalidatePath("/livros");
   revalidatePath("/dashboard");
@@ -773,4 +784,151 @@ export async function deleteMedication(formData: FormData) {
     .eq("id", medicationId);
   if (error) throw new Error(`deleteMedication: ${error.message}`);
   revalidatePath("/remedios");
+}
+
+// ---------- Boards (listas customizaveis) ----------
+
+const boardModelEnum = z.enum([
+  "CHECKLIST",
+  "CATALOG",
+  "COUNTER",
+  "SCHEDULE",
+  "NOTE",
+]);
+
+export async function createBoard(formData: FormData) {
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const model = boardModelEnum.parse(readText(formData, "model"));
+  const icon = optionalText.parse(readText(formData, "icon")) || null;
+  const { userId, supabase } = await getCurrentUserContext();
+
+  const { data, error } = await supabase
+    .from("boards")
+    .insert({ user_id: userId, name, model, icon })
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`createBoard: ${error.message}`);
+
+  revalidatePath("/dashboard");
+  if (data?.id) {
+    redirect(`/lista/${data.id}`);
+  }
+}
+
+export async function updateBoard(formData: FormData) {
+  const boardId = readId(formData, "boardId");
+  const name = nonEmptyText.parse(readText(formData, "name"));
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase
+    .from("boards")
+    .update({ name })
+    .eq("id", boardId);
+  if (error) throw new Error(`updateBoard: ${error.message}`);
+  revalidatePath("/dashboard");
+  revalidatePath(`/lista/${boardId}`);
+}
+
+export async function deleteBoard(formData: FormData) {
+  const boardId = readId(formData, "boardId");
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("boards").delete().eq("id", boardId);
+  if (error) throw new Error(`deleteBoard: ${error.message}`);
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function createBoardItem(formData: FormData) {
+  const boardId = readId(formData, "boardId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const description = optionalText.parse(readText(formData, "description"));
+  const amountRaw = readText(formData, "amount");
+  const occurredAtRaw = readText(formData, "occurredAt");
+
+  const insert: Record<string, unknown> = {
+    board_id: boardId,
+    title,
+    description: description || null,
+  };
+
+  if (amountRaw) {
+    insert.amount = z.coerce.number().int().parse(amountRaw);
+  }
+  if (occurredAtRaw) {
+    insert.occurred_at = z.coerce.date().parse(occurredAtRaw).toISOString();
+  }
+
+  const { supabase } = await getCurrentUserContext();
+  const { error } = await supabase.from("board_items").insert(insert);
+  if (error) throw new Error(`createBoardItem: ${error.message}`);
+
+  revalidatePath(`/lista/${boardId}`);
+}
+
+export async function updateBoardItem(formData: FormData) {
+  const itemId = readId(formData, "itemId");
+  const title = nonEmptyText.parse(readText(formData, "title"));
+  const description = optionalText.parse(readText(formData, "description"));
+  const { supabase } = await getCurrentUserContext();
+  const { data: item } = await supabase
+    .from("board_items")
+    .select("board_id")
+    .eq("id", itemId)
+    .maybeSingle();
+  const { error } = await supabase
+    .from("board_items")
+    .update({ title, description: description || null })
+    .eq("id", itemId);
+  if (error) throw new Error(`updateBoardItem: ${error.message}`);
+  if (item?.board_id) revalidatePath(`/lista/${item.board_id}`);
+}
+
+export async function deleteBoardItem(formData: FormData) {
+  const itemId = readId(formData, "itemId");
+  const { supabase } = await getCurrentUserContext();
+  const { data: item } = await supabase
+    .from("board_items")
+    .select("board_id")
+    .eq("id", itemId)
+    .maybeSingle();
+  const { error } = await supabase
+    .from("board_items")
+    .delete()
+    .eq("id", itemId);
+  if (error) throw new Error(`deleteBoardItem: ${error.message}`);
+  if (item?.board_id) revalidatePath(`/lista/${item.board_id}`);
+}
+
+export async function toggleBoardItemForToday(formData: FormData) {
+  const itemId = readId(formData, "itemId");
+  const occurredOn = todayDateIso();
+  const { supabase } = await getCurrentUserContext();
+
+  const { data: existing } = await supabase
+    .from("board_item_logs")
+    .select("id")
+    .eq("board_item_id", itemId)
+    .eq("occurred_on", occurredOn)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("board_item_logs")
+      .delete()
+      .eq("id", existing.id);
+    if (error) throw new Error(`toggleBoardItem: ${error.message}`);
+  } else {
+    const { error } = await supabase.from("board_item_logs").insert({
+      board_item_id: itemId,
+      occurred_on: occurredOn,
+      completed: true,
+    });
+    if (error) throw new Error(`toggleBoardItem: ${error.message}`);
+  }
+
+  const { data: item } = await supabase
+    .from("board_items")
+    .select("board_id")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (item?.board_id) revalidatePath(`/lista/${item.board_id}`);
 }

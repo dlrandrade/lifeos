@@ -133,6 +133,7 @@ export type Book = {
   started_at: string | null;
   finished_at: string | null;
   notes: string | null;
+  cover_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -196,6 +197,33 @@ export type MedicationSchedule = {
   id: string;
   medication_id: string;
   time_label: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BoardModel = "CHECKLIST" | "CATALOG" | "COUNTER" | "SCHEDULE" | "NOTE";
+
+export type Board = {
+  id: string;
+  user_id: string;
+  name: string;
+  model: BoardModel;
+  icon: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BoardItem = {
+  id: string;
+  board_id: string;
+  title: string;
+  description: string | null;
+  amount: number | null;
+  status: string | null;
+  occurred_at: string | null;
+  completed: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;

@@ -1,4 +1,4 @@
-# lst
+# lifeOS
 
 Web app pessoal (PWA) para rotina, saude e organizacao com os modulos:
 
@@ -28,6 +28,8 @@ Web app pessoal (PWA) para rotina, saude e organizacao com os modulos:
    `supabase/migrations/0001_initial.sql` inteiro e rode. Ele cria tabelas,
    enums, indices, RLS e o trigger que prepara `profiles` + `water_goals`
    quando alguem se cadastra.
+3. Em seguida, rode tambem `supabase/migrations/0002_boards.sql` para
+   habilitar listas customizaveis (boards) e capa de livro (cover_url).
 3. Crie `.env.local` na raiz com:
 
    ```env

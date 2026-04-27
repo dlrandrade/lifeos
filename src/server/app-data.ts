@@ -139,6 +139,24 @@ function todayStartIso() {
   return startOfDay(new Date()).toISOString();
 }
 
+// Helper para queries que dependem de tabelas opcionais (ex: boards do 0002).
+// Se a tabela nao existir, retorna { data: [], error: null } e segue.
+async function safeSelect<T>(
+  supabase: SB,
+  query: (s: SB) => Promise<{ data: T | null; error: { message: string } | null }>,
+): Promise<{ data: T | null; error: null }> {
+  try {
+    const { data, error } = await query(supabase);
+    if (error) {
+      // Tabela nao existe ou outro erro de RLS: trata como "sem dados".
+      return { data: null, error: null };
+    }
+    return { data, error: null };
+  } catch {
+    return { data: null, error: null };
+  }
+}
+
 export async function getDashboardData() {
   const { userId, profile, waterGoal, supabase } = await getCurrentUserContext();
   const today = startOfDay(new Date());
@@ -176,6 +194,11 @@ export async function getDashboardData() {
     mealPlanRes,
     currentBookRes,
     appointmentsRes,
+    pendingRemindersRes,
+    activeMedsRes,
+    pendingExamsRes,
+    queuedMoviesRes,
+    boardsRes,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -242,6 +265,38 @@ export async function getDashboardData() {
       .order("starts_at", { ascending: true })
       .limit(3)
       .returns<Appointment[]>(),
+    supabase
+      .from("reminders")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "PENDING"),
+    supabase
+      .from("medications")
+      .select("id, name")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .limit(5),
+    supabase
+      .from("exams")
+      .select("id, name")
+      .eq("user_id", userId)
+      .in("current_status", ["PLANNED", "SCHEDULED"])
+      .limit(5),
+    supabase
+      .from("movies")
+      .select("id, title")
+      .eq("user_id", userId)
+      .eq("status", "TO_WATCH")
+      .order("updated_at", { ascending: false })
+      .limit(1),
+    safeSelect(supabase, async (s) =>
+      s
+        .from("boards")
+        .select("id, name, model, icon")
+        .eq("user_id", userId)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ),
   ]);
 
   const tasks = tasksRes.data ?? [];
@@ -251,6 +306,16 @@ export async function getDashboardData() {
   const mealPlan = mealPlanRes.data ?? null;
   const currentBook = currentBookRes.data ?? null;
   const appointments = appointmentsRes.data ?? [];
+  const pendingReminders = pendingRemindersRes.data?.length ?? 0;
+  const activeMeds = activeMedsRes.data ?? [];
+  const pendingExams = pendingExamsRes.data ?? [];
+  const queuedMovies = queuedMoviesRes.data ?? [];
+  const boards = (boardsRes.data ?? []) as Array<{
+    id: string;
+    name: string;
+    model: string;
+    icon: string | null;
+  }>;
 
   const completedTaskIds = new Set(
     taskLogs.filter((item) => item.completed).map((item) => item.task_id),
@@ -265,26 +330,55 @@ export async function getDashboardData() {
     (day) => day.week_day === todayWeekDay,
   );
   const goalMl = waterGoal?.daily_goal_ml ?? profile?.daily_water_goal_ml ?? 2500;
-
-  // Mantemos algumas variaveis derivadas embora hoje nao sejam usadas — uteis para metricas futuras.
   void today;
-  void waterConsumed;
-  void goalMl;
-  void appointments;
 
   const firstName = (profile?.full_name ?? "Daniel").split(" ")[0];
+  const pendingTasks = tasks.filter((t) => !completedTaskIds.has(t.id)).length;
+  const doneTasks = tasks.length - pendingTasks;
+
+  const upcoming = appointments[0];
+  const upcomingAppointment = upcoming
+    ? `${new Date(upcoming.starts_at).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })} ${upcoming.title}`
+    : null;
 
   return {
     userName: firstName,
+    pendingTasks,
+    doneTasks,
+    hasWorkoutToday: !!todayPlanDay?.exercises?.length,
+    waterPct: Math.round((waterConsumed / goalMl) * 100),
+    upcomingAppointment,
+    pendingReminders,
+    categories: {
+      todayWorkout: todayPlanDay?.title ?? null,
+      currentBook: currentBook
+        ? { title: currentBook.title, author: currentBook.author }
+        : null,
+      nextMeal: mealPlan?.sections?.[0]?.title ?? null,
+      water: { consumed: waterConsumed, goal: goalMl },
+      nextAppointment: upcoming
+        ? {
+            title: upcoming.title,
+            time: new Date(upcoming.starts_at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          }
+        : null,
+      pendingReminders,
+      activeMedicationsCount: activeMeds.length,
+      pendingExamsCount: pendingExams.length,
+      nextMovie: queuedMovies[0] ?? null,
+    },
+    boards,
     tasks: tasks.map((task) => ({
       id: task.id,
       title: task.title,
       completed: completedTaskIds.has(task.id),
     })),
-    todayWorkoutTitle: todayPlanDay?.title ?? null,
-    currentBookTitle: currentBook?.title ?? null,
-    currentBookAuthor: currentBook?.author ?? null,
-    nextMealTitle: mealPlan?.sections?.[0]?.title ?? null,
   };
 }
 
