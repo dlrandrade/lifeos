@@ -506,9 +506,36 @@ const MONTH_NAMES = [
   "Dezembro",
 ];
 
-export async function getTreinosData() {
+export type TreinosGroup = {
+  id: string;
+  weekDay: number;
+  weekDayLabel: string;
+  title: string;
+  isToday: boolean;
+  exercises: Array<{ id: string; name: string; completed: boolean }>;
+  totalCount: number;
+  doneCount: number;
+  allDone: boolean;
+};
+
+export type TreinosData = {
+  plan: (WorkoutPlan & { days: Array<WorkoutDay & { exercises: WorkoutExercise[] }> }) | null;
+  todayWeekDay: number;
+  todayLabel: string;
+  groups: TreinosGroup[];
+  todayGroup: TreinosGroup | null;
+  stats: {
+    todayDone: number;
+    todayTotal: number;
+    weekDaysCompleted: number;
+    weekDaysPlanned: number;
+  };
+};
+
+export async function getTreinosData(): Promise<TreinosData> {
   const { userId, supabase } = await getCurrentUserContext();
   const todayDate = todayIsoDate();
+  const todayWeekDay = new Date().getDay();
 
   type PlanShape = WorkoutPlan & {
     days: Array<WorkoutDay & { exercises: WorkoutExercise[] }>;
@@ -528,51 +555,120 @@ export async function getTreinosData() {
     .maybeSingle<PlanShape>();
 
   if (!plan) {
-    return { plan: null as PlanShape | null, days: [], today: { id: null as string | null, weekDay: new Date().getDay(), title: WEEK_DAY_NAMES[new Date().getDay()], exercises: [] as Array<{ id: string; name: string; completed: boolean }> }, otherDays: [] as Array<{ id: string; weekDay: number; title: string }> };
+    return {
+      plan: null,
+      todayWeekDay,
+      todayLabel: WEEK_DAY_NAMES[todayWeekDay],
+      groups: [],
+      todayGroup: null,
+      stats: {
+        todayDone: 0,
+        todayTotal: 0,
+        weekDaysCompleted: 0,
+        weekDaysPlanned: 0,
+      },
+    };
   }
 
-  const todayWeekDay = new Date().getDay();
   const days = plan.days ?? [];
-
   const allExerciseIds = days.flatMap((d) => d.exercises?.map((e) => e.id) ?? []);
-  let completedSet = new Set<string>();
+
+  const todayLogs = new Set<string>();
   if (allExerciseIds.length) {
     const { data: logs } = await supabase
       .from("workout_logs")
       .select("workout_exercise_id, completed")
       .in("workout_exercise_id", allExerciseIds)
       .eq("occurred_on", todayDate);
-    completedSet = new Set(
-      (logs ?? [])
-        .filter((l: { completed: boolean }) => l.completed)
-        .map((l: { workout_exercise_id: string }) => l.workout_exercise_id),
-    );
+    for (const log of logs ?? []) {
+      if ((log as { completed: boolean }).completed) {
+        todayLogs.add((log as { workout_exercise_id: string }).workout_exercise_id);
+      }
+    }
   }
 
-  const todayPlanDay = days.find((d) => d.week_day === todayWeekDay) ?? null;
-  const otherDays = days
-    .filter((d) => d.week_day !== todayWeekDay)
-    .map((d) => ({
+  // Logs of the current ISO week, used for "dias treinados na semana"
+  const weekLogsCompletedByDay = new Map<number, number>();
+  if (allExerciseIds.length) {
+    const start = new Date();
+    const day = start.getDay();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - day); // Sunday
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    const startIso = start.toISOString().slice(0, 10);
+    const endIso = end.toISOString().slice(0, 10);
+
+    const { data: weekLogs } = await supabase
+      .from("workout_logs")
+      .select("workout_exercise_id, occurred_on, completed")
+      .in("workout_exercise_id", allExerciseIds)
+      .gte("occurred_on", startIso)
+      .lt("occurred_on", endIso);
+
+    type WkLog = { workout_exercise_id: string; occurred_on: string; completed: boolean };
+    const exerciseToDay = new Map<string, number>();
+    for (const d of days) {
+      for (const ex of d.exercises ?? []) exerciseToDay.set(ex.id, d.week_day);
+    }
+    const dayDone = new Map<number, Map<string, Set<string>>>();
+    for (const log of (weekLogs ?? []) as WkLog[]) {
+      if (!log.completed) continue;
+      const wd = exerciseToDay.get(log.workout_exercise_id);
+      if (wd === undefined) continue;
+      if (!dayDone.has(wd)) dayDone.set(wd, new Map());
+      const byDate = dayDone.get(wd)!;
+      if (!byDate.has(log.occurred_on)) byDate.set(log.occurred_on, new Set());
+      byDate.get(log.occurred_on)!.add(log.workout_exercise_id);
+    }
+    for (const [wd, byDate] of dayDone.entries()) {
+      const planDay = days.find((d) => d.week_day === wd);
+      const total = planDay?.exercises?.length ?? 0;
+      let completed = 0;
+      for (const set of byDate.values()) if (total > 0 && set.size === total) completed++;
+      weekLogsCompletedByDay.set(wd, completed);
+    }
+  }
+
+  const groups: TreinosGroup[] = days.map((d) => {
+    const exercises = (d.exercises ?? []).map((e) => ({
+      id: e.id,
+      name: e.name,
+      completed: todayLogs.has(e.id),
+    }));
+    const totalCount = exercises.length;
+    const doneCount = exercises.filter((e) => e.completed).length;
+    return {
       id: d.id,
       weekDay: d.week_day,
+      weekDayLabel: WEEK_DAY_NAMES[d.week_day],
       title: d.title || WEEK_DAY_NAMES[d.week_day],
-    }));
+      isToday: d.week_day === todayWeekDay,
+      exercises,
+      totalCount,
+      doneCount,
+      allDone: totalCount > 0 && doneCount === totalCount,
+    };
+  });
+
+  const todayGroup = groups.find((g) => g.isToday) ?? null;
+  const todayDone = todayGroup?.doneCount ?? 0;
+  const todayTotal = todayGroup?.totalCount ?? 0;
+
+  const weekDaysPlanned = groups.filter((g) => g.totalCount > 0).length;
+  let weekDaysCompleted = 0;
+  for (const g of groups) {
+    if (g.totalCount === 0) continue;
+    if ((weekLogsCompletedByDay.get(g.weekDay) ?? 0) > 0) weekDaysCompleted++;
+  }
 
   return {
     plan,
-    days,
-    today: {
-      id: todayPlanDay?.id ?? null,
-      weekDay: todayWeekDay,
-      title: todayPlanDay?.title || WEEK_DAY_NAMES[todayWeekDay],
-      exercises:
-        todayPlanDay?.exercises?.map((e) => ({
-          id: e.id,
-          name: e.name,
-          completed: completedSet.has(e.id),
-        })) ?? [],
-    },
-    otherDays,
+    todayWeekDay,
+    todayLabel: WEEK_DAY_NAMES[todayWeekDay],
+    groups,
+    todayGroup,
+    stats: { todayDone, todayTotal, weekDaysCompleted, weekDaysPlanned },
   };
 }
 
