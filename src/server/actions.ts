@@ -349,6 +349,7 @@ export async function createWorkoutPlan(formData: FormData) {
 
   revalidatePath("/treinos");
   revalidatePath("/dashboard");
+  redirect("/treinos");
 }
 
 export async function deleteWorkoutPlan(formData: FormData) {

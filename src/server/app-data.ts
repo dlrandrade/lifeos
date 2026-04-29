@@ -549,22 +549,17 @@ export async function getTreinosData(): Promise<TreinosData> {
   const todayDate = todayIsoDate();
   const todayWeekDay = new Date().getDay();
 
-  type PlanShape = WorkoutPlan & {
-    days: Array<WorkoutDay & { exercises: WorkoutExercise[] }>;
-  };
-
-  const { data: plan } = await supabase
+  // Busca plano ativo
+  const { data: plan, error: planErr } = await supabase
     .from("workout_plans")
-    .select(`*, days:workout_days(*, exercises:workout_exercises(*))`)
+    .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
-    .order("week_day", { referencedTable: "workout_days", ascending: true })
-    .order("sort_order", {
-      referencedTable: "workout_days.workout_exercises",
-      ascending: true,
-    })
+    .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle<PlanShape>();
+    .maybeSingle<WorkoutPlan>();
+
+  if (planErr) console.error("getTreinosData plan:", planErr.message);
 
   if (!plan) {
     return {
@@ -585,9 +580,42 @@ export async function getTreinosData(): Promise<TreinosData> {
     };
   }
 
-  const days = plan.days ?? [];
-  const allExerciseIds = days.flatMap((d) => d.exercises?.map((e) => e.id) ?? []);
+  // Busca dias do plano
+  const { data: daysRaw } = await supabase
+    .from("workout_days")
+    .select("*")
+    .eq("workout_plan_id", plan.id)
+    .order("week_day", { ascending: true })
+    .order("created_at", { ascending: true })
+    .returns<WorkoutDay[]>();
 
+  const days = daysRaw ?? [];
+  const dayIds = days.map((d) => d.id);
+
+  // Busca exercicios de todos os dias
+  let exercisesRaw: WorkoutExercise[] = [];
+  if (dayIds.length) {
+    const { data } = await supabase
+      .from("workout_exercises")
+      .select("*")
+      .in("workout_day_id", dayIds)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .returns<WorkoutExercise[]>();
+    exercisesRaw = data ?? [];
+  }
+
+  const exercisesByDay = new Map<string, WorkoutExercise[]>();
+  for (const ex of exercisesRaw) {
+    if (!exercisesByDay.has(ex.workout_day_id)) {
+      exercisesByDay.set(ex.workout_day_id, []);
+    }
+    exercisesByDay.get(ex.workout_day_id)!.push(ex);
+  }
+
+  const allExerciseIds = exercisesRaw.map((e) => e.id);
+
+  // Logs de hoje
   const todayLogs = new Set<string>();
   if (allExerciseIds.length) {
     const { data: logs } = await supabase
@@ -602,29 +630,28 @@ export async function getTreinosData(): Promise<TreinosData> {
     }
   }
 
-  // Logs of the current ISO week, used for "dias treinados na semana"
+  // Logs da semana corrente (Dom-Sab)
   const weekLogsCompletedByDay = new Map<number, number>();
   if (allExerciseIds.length) {
     const start = new Date();
-    const day = start.getDay();
     start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - day); // Sunday
+    start.setDate(start.getDate() - start.getDay());
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
-    const startIso = start.toISOString().slice(0, 10);
-    const endIso = end.toISOString().slice(0, 10);
 
     const { data: weekLogs } = await supabase
       .from("workout_logs")
       .select("workout_exercise_id, occurred_on, completed")
       .in("workout_exercise_id", allExerciseIds)
-      .gte("occurred_on", startIso)
-      .lt("occurred_on", endIso);
+      .gte("occurred_on", start.toISOString().slice(0, 10))
+      .lt("occurred_on", end.toISOString().slice(0, 10));
 
     type WkLog = { workout_exercise_id: string; occurred_on: string; completed: boolean };
     const exerciseToDay = new Map<string, number>();
     for (const d of days) {
-      for (const ex of d.exercises ?? []) exerciseToDay.set(ex.id, d.week_day);
+      for (const ex of exercisesByDay.get(d.id) ?? []) {
+        exerciseToDay.set(ex.id, d.week_day);
+      }
     }
     const dayDone = new Map<number, Map<string, Set<string>>>();
     for (const log of (weekLogs ?? []) as WkLog[]) {
@@ -637,16 +664,28 @@ export async function getTreinosData(): Promise<TreinosData> {
       byDate.get(log.occurred_on)!.add(log.workout_exercise_id);
     }
     for (const [wd, byDate] of dayDone.entries()) {
-      const planDay = days.find((d) => d.week_day === wd);
-      const total = planDay?.exercises?.length ?? 0;
+      const dayExs = days
+        .filter((d) => d.week_day === wd)
+        .flatMap((d) => exercisesByDay.get(d.id) ?? []);
+      const total = dayExs.length;
       let completed = 0;
-      for (const set of byDate.values()) if (total > 0 && set.size === total) completed++;
+      for (const set of byDate.values()) if (total > 0 && set.size >= total) completed++;
       weekLogsCompletedByDay.set(wd, completed);
     }
   }
 
+  // Monta grupos
+  const planWithDays = {
+    ...plan,
+    days: days.map((d) => ({
+      ...d,
+      exercises: exercisesByDay.get(d.id) ?? [],
+    })),
+  };
+
   const groups: TreinosGroup[] = days.map((d) => {
-    const exercises: TreinosExercise[] = (d.exercises ?? []).map((e) => ({
+    const exs = exercisesByDay.get(d.id) ?? [];
+    const exercises: TreinosExercise[] = exs.map((e) => ({
       id: e.id,
       name: e.name,
       sets: e.sets ?? null,
@@ -667,6 +706,7 @@ export async function getTreinosData(): Promise<TreinosData> {
       doneCount,
       allDone: totalCount > 0 && doneCount === totalCount,
     };
+  });
   });
 
   const todayGroups = groups.filter((g) => g.isToday);
@@ -733,7 +773,7 @@ export async function getTreinosData(): Promise<TreinosData> {
   }
 
   return {
-    plan,
+    plan: planWithDays,
     todayWeekDay,
     todayLabel: WEEK_DAY_NAMES[todayWeekDay],
     groups,
