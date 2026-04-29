@@ -399,14 +399,32 @@ export async function deleteWorkoutDay(formData: FormData) {
   revalidatePath("/treinos");
 }
 
+function readOptionalText(formData: FormData, key: string) {
+  const v = readText(formData, key).trim();
+  return v.length ? v : null;
+}
+
+function readOptionalInt(formData: FormData, key: string) {
+  const v = readText(formData, key).trim();
+  if (!v.length) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
 export async function createWorkoutExercise(formData: FormData) {
   const dayId = readId(formData, "dayId");
   const name = nonEmptyText.parse(readText(formData, "name"));
+  const sets = readOptionalInt(formData, "sets");
+  const reps = readOptionalText(formData, "reps");
+  const load = readOptionalText(formData, "load");
   const { supabase } = await getCurrentUserContext();
 
   const { error } = await supabase.from("workout_exercises").insert({
     workout_day_id: dayId,
     name,
+    sets,
+    reps,
+    load,
   });
   if (error) throw new Error(`createWorkoutExercise: ${error.message}`);
 
@@ -574,19 +592,31 @@ export async function updateWorkoutPlan(formData: FormData) {
 export async function updateWorkoutDay(formData: FormData) {
   const dayId = readId(formData, "dayId");
   const title = nonEmptyText.parse(readText(formData, "title"));
+  const weekDayRaw = readText(formData, "weekDay").trim();
+  const update: { title: string; week_day?: number } = { title };
+  if (weekDayRaw.length) {
+    update.week_day = z.coerce.number().int().min(0).max(6).parse(weekDayRaw);
+  }
   const { supabase } = await getCurrentUserContext();
-  const { error } = await supabase.from("workout_days").update({ title }).eq("id", dayId);
+  const { error } = await supabase
+    .from("workout_days")
+    .update(update)
+    .eq("id", dayId);
   if (error) throw new Error(`updateWorkoutDay: ${error.message}`);
   revalidatePath("/treinos");
+  revalidatePath("/dashboard");
 }
 
 export async function updateWorkoutExercise(formData: FormData) {
   const exerciseId = readId(formData, "exerciseId");
   const name = nonEmptyText.parse(readText(formData, "name"));
+  const sets = readOptionalInt(formData, "sets");
+  const reps = readOptionalText(formData, "reps");
+  const load = readOptionalText(formData, "load");
   const { supabase } = await getCurrentUserContext();
   const { error } = await supabase
     .from("workout_exercises")
-    .update({ name })
+    .update({ name, sets, reps, load })
     .eq("id", exerciseId);
   if (error) throw new Error(`updateWorkoutExercise: ${error.message}`);
   revalidatePath("/treinos");

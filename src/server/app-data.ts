@@ -506,13 +506,22 @@ const MONTH_NAMES = [
   "Dezembro",
 ];
 
+export type TreinosExercise = {
+  id: string;
+  name: string;
+  sets: number | null;
+  reps: string | null;
+  load: string | null;
+  completed: boolean;
+};
+
 export type TreinosGroup = {
   id: string;
   weekDay: number;
   weekDayLabel: string;
   title: string;
   isToday: boolean;
-  exercises: Array<{ id: string; name: string; completed: boolean }>;
+  exercises: TreinosExercise[];
   totalCount: number;
   doneCount: number;
   allDone: boolean;
@@ -523,12 +532,15 @@ export type TreinosData = {
   todayWeekDay: number;
   todayLabel: string;
   groups: TreinosGroup[];
-  todayGroup: TreinosGroup | null;
+  todayGroups: TreinosGroup[];
   stats: {
     todayDone: number;
     todayTotal: number;
     weekDaysCompleted: number;
     weekDaysPlanned: number;
+    monthTrainedDays: number;
+    streak: number;
+    last7: Array<{ date: string; weekDay: number; count: number; trained: boolean }>;
   };
 };
 
@@ -560,12 +572,15 @@ export async function getTreinosData(): Promise<TreinosData> {
       todayWeekDay,
       todayLabel: WEEK_DAY_NAMES[todayWeekDay],
       groups: [],
-      todayGroup: null,
+      todayGroups: [],
       stats: {
         todayDone: 0,
         todayTotal: 0,
         weekDaysCompleted: 0,
         weekDaysPlanned: 0,
+        monthTrainedDays: 0,
+        streak: 0,
+        last7: [],
       },
     };
   }
@@ -631,9 +646,12 @@ export async function getTreinosData(): Promise<TreinosData> {
   }
 
   const groups: TreinosGroup[] = days.map((d) => {
-    const exercises = (d.exercises ?? []).map((e) => ({
+    const exercises: TreinosExercise[] = (d.exercises ?? []).map((e) => ({
       id: e.id,
       name: e.name,
+      sets: e.sets ?? null,
+      reps: e.reps ?? null,
+      load: e.load ?? null,
       completed: todayLogs.has(e.id),
     }));
     const totalCount = exercises.length;
@@ -651,15 +669,67 @@ export async function getTreinosData(): Promise<TreinosData> {
     };
   });
 
-  const todayGroup = groups.find((g) => g.isToday) ?? null;
-  const todayDone = todayGroup?.doneCount ?? 0;
-  const todayTotal = todayGroup?.totalCount ?? 0;
+  const todayGroups = groups.filter((g) => g.isToday);
+  const todayDone = todayGroups.reduce((sum, g) => sum + g.doneCount, 0);
+  const todayTotal = todayGroups.reduce((sum, g) => sum + g.totalCount, 0);
 
-  const weekDaysPlanned = groups.filter((g) => g.totalCount > 0).length;
+  const weekDaysPlanned = new Set(
+    groups.filter((g) => g.totalCount > 0).map((g) => g.weekDay),
+  ).size;
   let weekDaysCompleted = 0;
-  for (const g of groups) {
-    if (g.totalCount === 0) continue;
-    if ((weekLogsCompletedByDay.get(g.weekDay) ?? 0) > 0) weekDaysCompleted++;
+  for (const wd of new Set(groups.map((g) => g.weekDay))) {
+    if ((weekLogsCompletedByDay.get(wd) ?? 0) > 0) weekDaysCompleted++;
+  }
+
+  // Historico: ultimos 7 dias e mes corrente
+  const last7: Array<{ date: string; weekDay: number; count: number; trained: boolean }> = [];
+  let monthTrainedDays = 0;
+  let streak = 0;
+  if (allExerciseIds.length) {
+    const monthStart = new Date();
+    monthStart.setHours(0, 0, 0, 0);
+    monthStart.setDate(1);
+    const monthEnd = new Date(monthStart);
+    monthEnd.setMonth(monthEnd.getMonth() + 1);
+    const horizonStart = new Date(monthStart);
+    const sevenAgo = new Date();
+    sevenAgo.setHours(0, 0, 0, 0);
+    sevenAgo.setDate(sevenAgo.getDate() - 6);
+    if (sevenAgo < horizonStart) horizonStart.setTime(sevenAgo.getTime());
+
+    const { data: histLogs } = await supabase
+      .from("workout_logs")
+      .select("occurred_on, completed")
+      .in("workout_exercise_id", allExerciseIds)
+      .gte("occurred_on", horizonStart.toISOString().slice(0, 10))
+      .lt("occurred_on", monthEnd.toISOString().slice(0, 10));
+
+    const dateCounts = new Map<string, number>();
+    for (const log of (histLogs ?? []) as Array<{ occurred_on: string; completed: boolean }>) {
+      if (!log.completed) continue;
+      dateCounts.set(log.occurred_on, (dateCounts.get(log.occurred_on) ?? 0) + 1);
+    }
+    for (const [date] of dateCounts) {
+      if (date >= monthStart.toISOString().slice(0, 10)) monthTrainedDays++;
+    }
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      const count = dateCounts.get(iso) ?? 0;
+      last7.push({ date: iso, weekDay: d.getDay(), count, trained: count > 0 });
+    }
+    // streak: consecutivos a partir de hoje (ou ontem se hoje 0)
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    if ((dateCounts.get(cursor.toISOString().slice(0, 10)) ?? 0) === 0) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    while ((dateCounts.get(cursor.toISOString().slice(0, 10)) ?? 0) > 0) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
   }
 
   return {
@@ -667,8 +737,16 @@ export async function getTreinosData(): Promise<TreinosData> {
     todayWeekDay,
     todayLabel: WEEK_DAY_NAMES[todayWeekDay],
     groups,
-    todayGroup,
-    stats: { todayDone, todayTotal, weekDaysCompleted, weekDaysPlanned },
+    todayGroups,
+    stats: {
+      todayDone,
+      todayTotal,
+      weekDaysCompleted,
+      weekDaysPlanned,
+      monthTrainedDays,
+      streak,
+      last7,
+    },
   };
 }
 
