@@ -707,7 +707,6 @@ export async function getTreinosData(): Promise<TreinosData> {
       allDone: totalCount > 0 && doneCount === totalCount,
     };
   });
-  });
 
   const todayGroups = groups.filter((g) => g.isToday);
   const todayDone = todayGroups.reduce((sum, g) => sum + g.doneCount, 0);
