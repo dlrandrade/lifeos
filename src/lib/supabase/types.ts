@@ -84,6 +84,9 @@ export type WorkoutExercise = {
   workout_day_id: string;
   name: string;
   notes: string | null;
+  sets: number | null;
+  reps: string | null;
+  load: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

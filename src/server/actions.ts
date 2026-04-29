@@ -399,14 +399,32 @@ export async function deleteWorkoutDay(formData: FormData) {
   revalidatePath("/treinos");
 }
 
+function readOptionalText(formData: FormData, key: string) {
+  const v = readText(formData, key).trim();
+  return v.length ? v : null;
+}
+
+function readOptionalInt(formData: FormData, key: string) {
+  const v = readText(formData, key).trim();
+  if (!v.length) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
 export async function createWorkoutExercise(formData: FormData) {
   const dayId = readId(formData, "dayId");
   const name = nonEmptyText.parse(readText(formData, "name"));
+  const sets = readOptionalInt(formData, "sets");
+  const reps = readOptionalText(formData, "reps");
+  const load = readOptionalText(formData, "load");
   const { supabase } = await getCurrentUserContext();
 
   const { error } = await supabase.from("workout_exercises").insert({
     workout_day_id: dayId,
     name,
+    sets,
+    reps,
+    load,
   });
   if (error) throw new Error(`createWorkoutExercise: ${error.message}`);
 
@@ -574,19 +592,31 @@ export async function updateWorkoutPlan(formData: FormData) {
 export async function updateWorkoutDay(formData: FormData) {
   const dayId = readId(formData, "dayId");
   const title = nonEmptyText.parse(readText(formData, "title"));
+  const weekDayRaw = readText(formData, "weekDay").trim();
+  const update: { title: string; week_day?: number } = { title };
+  if (weekDayRaw.length) {
+    update.week_day = z.coerce.number().int().min(0).max(6).parse(weekDayRaw);
+  }
   const { supabase } = await getCurrentUserContext();
-  const { error } = await supabase.from("workout_days").update({ title }).eq("id", dayId);
+  const { error } = await supabase
+    .from("workout_days")
+    .update(update)
+    .eq("id", dayId);
   if (error) throw new Error(`updateWorkoutDay: ${error.message}`);
   revalidatePath("/treinos");
+  revalidatePath("/dashboard");
 }
 
 export async function updateWorkoutExercise(formData: FormData) {
   const exerciseId = readId(formData, "exerciseId");
   const name = nonEmptyText.parse(readText(formData, "name"));
+  const sets = readOptionalInt(formData, "sets");
+  const reps = readOptionalText(formData, "reps");
+  const load = readOptionalText(formData, "load");
   const { supabase } = await getCurrentUserContext();
   const { error } = await supabase
     .from("workout_exercises")
-    .update({ name })
+    .update({ name, sets, reps, load })
     .eq("id", exerciseId);
   if (error) throw new Error(`updateWorkoutExercise: ${error.message}`);
   revalidatePath("/treinos");
@@ -597,28 +627,93 @@ export async function toggleWorkoutExerciseForToday(formData: FormData) {
   const { userId, supabase } = await getCurrentUserContext();
   const occurredOn = todayDateIso();
 
-  const { data: existing, error: selErr } = await supabase
+  const { data: existing } = await supabase
     .from("workout_logs")
-    .select("id")
+    .select("id, completed")
     .eq("workout_exercise_id", exerciseId)
     .eq("occurred_on", occurredOn)
     .maybeSingle();
-  if (selErr) throw new Error(`toggleWorkoutExercise: ${selErr.message}`);
 
   if (existing) {
+    if (existing.completed) {
+      const { error } = await supabase
+        .from("workout_logs")
+        .delete()
+        .eq("id", existing.id);
+      if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+    } else {
+      const { error } = await supabase
+        .from("workout_logs")
+        .update({ completed: true })
+        .eq("id", existing.id);
+      if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+    }
+  } else {
+    const { error } = await supabase
+      .from("workout_logs")
+      .upsert(
+        {
+          user_id: userId,
+          workout_exercise_id: exerciseId,
+          occurred_on: occurredOn,
+          completed: true,
+        },
+        { onConflict: "workout_exercise_id,occurred_on" },
+      );
+    if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+  }
+
+  revalidatePath("/treinos");
+  revalidatePath("/dashboard");
+}
+
+export async function toggleWorkoutDayForToday(formData: FormData) {
+  const dayId = readId(formData, "dayId");
+  const { userId, supabase } = await getCurrentUserContext();
+  const occurredOn = todayDateIso();
+
+  const { data: exercises, error: exErr } = await supabase
+    .from("workout_exercises")
+    .select("id")
+    .eq("workout_day_id", dayId);
+  if (exErr) throw new Error(`toggleWorkoutDay: ${exErr.message}`);
+
+  const exerciseIds = (exercises ?? []).map((e: { id: string }) => e.id);
+  if (!exerciseIds.length) {
+    revalidatePath("/treinos");
+    return;
+  }
+
+  const { data: logs, error: logErr } = await supabase
+    .from("workout_logs")
+    .select("workout_exercise_id, completed")
+    .in("workout_exercise_id", exerciseIds)
+    .eq("occurred_on", occurredOn);
+  if (logErr) throw new Error(`toggleWorkoutDay: ${logErr.message}`);
+
+  const completedCount = (logs ?? []).filter(
+    (l: { completed: boolean }) => l.completed,
+  ).length;
+  const allDone = completedCount === exerciseIds.length;
+
+  if (allDone) {
     const { error } = await supabase
       .from("workout_logs")
       .delete()
-      .eq("id", existing.id);
-    if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+      .in("workout_exercise_id", exerciseIds)
+      .eq("occurred_on", occurredOn);
+    if (error) throw new Error(`toggleWorkoutDay: ${error.message}`);
   } else {
-    const { error } = await supabase.from("workout_logs").insert({
+    const rows = exerciseIds.map((id) => ({
       user_id: userId,
-      workout_exercise_id: exerciseId,
+      workout_exercise_id: id,
       occurred_on: occurredOn,
       completed: true,
-    });
-    if (error) throw new Error(`toggleWorkoutExercise: ${error.message}`);
+    }));
+    const { error } = await supabase
+      .from("workout_logs")
+      .upsert(rows, { onConflict: "workout_exercise_id,occurred_on" });
+    if (error) throw new Error(`toggleWorkoutDay: ${error.message}`);
   }
 
   revalidatePath("/treinos");

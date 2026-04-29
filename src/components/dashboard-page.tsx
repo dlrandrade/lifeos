@@ -1,29 +1,21 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import {
   Bell,
   BookOpen,
   CalendarDays,
+  ChevronRight,
   Droplets,
   Dumbbell,
   Film,
   HeartPulse,
   type LucideIcon,
-  Pencil,
   Pill,
-  Plus,
   Search,
   TestTubeDiagonal,
-  Trash2,
   Utensils,
 } from "lucide-react";
-import { CheckButton } from "@/components/check-button";
 import { CreateBoardCard } from "@/components/create-board-card";
-import {
-  createTask,
-  deleteTask,
-  toggleTaskForToday,
-  updateTask,
-} from "@/server/actions";
 import { buildGreeting } from "@/lib/greeting";
 
 type DashboardData = {
@@ -34,6 +26,7 @@ type DashboardData = {
   waterPct: number;
   upcomingAppointment: string | null;
   pendingReminders: number;
+  homeItems: Array<{ id: string; title: string; href: string }>;
   categories: {
     todayWorkout: string | null;
     currentBook: { title: string; author: string | null } | null;
@@ -46,127 +39,87 @@ type DashboardData = {
     nextMovie: { id: string; title: string } | null;
   };
   boards: Array<{ id: string; name: string; model: string; icon: string | null }>;
-  tasks: Array<{ id: string; title: string; completed: boolean }>;
 };
 
-export function DashboardPage({ data }: { data: DashboardData }) {
+export async function DashboardPage({ data }: { data: DashboardData }) {
   const now = new Date();
-  const greeting = buildGreeting({
-    firstName: data.userName,
-    hour: now.getHours(),
-    weekDay: now.getDay(),
-    pendingTasks: data.pendingTasks,
-    doneTasks: data.doneTasks,
-    hasWorkoutToday: data.hasWorkoutToday,
-    waterPct: data.waterPct,
-    upcomingAppointment: data.upcomingAppointment,
-    pendingReminders: data.pendingReminders,
-  });
+  const cookieStore = await cookies();
+  const lastHook = cookieStore.get("lifeos_last_hook")?.value ?? null;
+
+  const greeting = buildGreeting(
+    {
+      firstName: data.userName,
+      hour: now.getHours(),
+      weekDay: now.getDay(),
+      pendingTasks: data.pendingTasks,
+      doneTasks: data.doneTasks,
+      hasWorkoutToday: data.hasWorkoutToday,
+      waterPct: data.waterPct,
+      upcomingAppointment: data.upcomingAppointment,
+      pendingReminders: data.pendingReminders,
+    },
+    lastHook,
+  );
 
   const cats = data.categories;
 
   return (
-    <div className="rounded-[2rem] bg-[var(--shell)] px-5 py-6 sm:px-7 sm:py-8 shadow-sm">
-      <div className="flex items-center justify-end">
-        <span className="text-2xl font-bold tracking-tight">lifeOS</span>
-      </div>
-
-      <h1 className="mt-8 text-3xl leading-[1.15] tracking-tight sm:text-4xl">
-        <span className="text-[var(--text-soft)]">{greeting.salutation}</span>
-        <br />
-        <span className="font-bold">{greeting.hook}</span>
-      </h1>
-
-      <div className="mt-8 space-y-3">
-        {data.tasks.map((task) => (
-          <div
-            key={task.id}
-            className="flex items-center justify-between gap-3"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <CheckButton
-                action={toggleTaskForToday}
-                hiddenFields={{ taskId: task.id }}
-                checked={task.completed}
-                ariaLabel={task.completed ? "Desmarcar tarefa" : "Concluir tarefa"}
-              />
-              <span
-                className={`truncate text-base sm:text-lg ${
-                  task.completed
-                    ? "text-[var(--text-muted)] line-through"
-                    : "text-[var(--text-soft)]"
-                }`}
-              >
-                {task.title}
-              </span>
-            </div>
-
-            <details className="relative">
-              <summary className="list-none cursor-pointer text-[var(--text-muted)] [&::-webkit-details-marker]:hidden">
-                <Pencil className="h-4 w-4" strokeWidth={1.7} />
-              </summary>
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white p-3 shadow-lg ring-1 ring-black/5 z-10">
-                <form action={updateTask} className="space-y-2">
-                  <input type="hidden" name="taskId" value={task.id} />
-                  <input
-                    name="title"
-                    defaultValue={task.title}
-                    required
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full rounded-full bg-[var(--text)] px-3 py-2 text-xs font-semibold text-white"
-                  >
-                    Salvar
-                  </button>
-                </form>
-                <form action={deleteTask} className="mt-2">
-                  <input type="hidden" name="taskId" value={task.id} />
-                  <button
-                    type="submit"
-                    className="flex w-full items-center justify-center gap-2 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600"
-                  >
-                    <Trash2 className="h-3 w-3" /> Excluir
-                  </button>
-                </form>
-              </div>
-            </details>
+    <>
+      <PersistHook hook={greeting.hook} />
+      <div className="fixed inset-0 bg-[var(--bg)] p-3 sm:p-5 flex overflow-hidden">
+        <div className="mx-auto flex w-full max-w-[768px] flex-col rounded-[2rem] bg-[var(--shell)] px-5 py-6 sm:px-7 sm:py-8 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-start">
+            <span className="text-2xl font-bold tracking-tight">lifeOS</span>
           </div>
-        ))}
 
-        <form action={createTask} className="flex items-center gap-3 pt-1">
-          <button
-            type="submit"
-            aria-label="Adicionar tarefa"
-            className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--check)] text-white"
-          >
-            <Plus className="h-4 w-4" strokeWidth={3} />
-          </button>
-          <input
-            name="title"
-            placeholder="Adicionar tarefa..."
-            required
-            className="flex-1 bg-transparent text-base text-[var(--text-soft)] placeholder:text-[var(--text-muted)] outline-none"
-          />
-        </form>
+          <h1 className="mt-6 text-3xl leading-[1.15] tracking-tight sm:text-4xl">
+            <span className="text-[var(--text-soft)]">{greeting.salutation}</span>
+            <br />
+            <span className="font-bold">{greeting.hook}</span>
+          </h1>
+
+          <div className="mt-6 flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+            {data.homeItems.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="flex items-center justify-between gap-3 group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="h-7 w-7 shrink-0 rounded-md bg-[var(--check)]" />
+                  <span className="truncate text-base sm:text-lg text-[var(--text-soft)] group-hover:text-[var(--text)]">
+                    {item.title}
+                  </span>
+                </div>
+                <ChevronRight
+                  className="h-4 w-4 text-[var(--text-muted)]"
+                  strokeWidth={1.7}
+                />
+              </Link>
+            ))}
+          </div>
+
+          <CategoryCarousel cats={cats} boards={data.boards} />
+
+          <div className="mt-4 flex items-center gap-3 rounded-full bg-[var(--card)] px-5 py-3 text-[var(--text-muted)] shadow-sm">
+            <input
+              type="search"
+              placeholder="Buscar..."
+              className="flex-1 bg-transparent text-sm outline-none"
+            />
+            <Search className="h-4 w-4" strokeWidth={1.7} />
+          </div>
+        </div>
       </div>
-
-      <CategoryCarousel
-        cats={cats}
-        boards={data.boards}
-      />
-
-      <div className="mt-6 flex items-center gap-3 rounded-full bg-[var(--card)] px-5 py-3 text-[var(--text-muted)] shadow-sm">
-        <input
-          type="search"
-          placeholder="Buscar..."
-          className="flex-1 bg-transparent text-sm outline-none"
-        />
-        <Search className="h-4 w-4" strokeWidth={1.7} />
-      </div>
-    </div>
+    </>
   );
+}
+
+function PersistHook({ hook }: { hook: string }) {
+  // Stores last shown hook so the next render can avoid repeating it.
+  const encoded = encodeURIComponent(hook);
+  const script = `document.cookie='lifeos_last_hook=${encoded};path=/;max-age=86400;samesite=lax'`;
+  return <script dangerouslySetInnerHTML={{ __html: script }} />;
 }
 
 const BOARD_ICONS: Record<string, LucideIcon> = {
@@ -190,8 +143,8 @@ function CategoryCarousel({
   boards: DashboardData["boards"];
 }) {
   return (
-    <div className="mt-10 -mx-5 sm:-mx-7">
-      <div className="flex gap-3 overflow-x-auto px-5 sm:px-7 pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="mt-6 -mx-5 sm:-mx-7 shrink-0">
+      <div className="flex gap-3 overflow-x-auto px-5 sm:px-7 pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <CatCard
           href="/treinos"
           Icon={Dumbbell}
