@@ -344,14 +344,109 @@ export async function getDashboardData() {
       })} ${upcoming.title}`
     : null;
 
+  const waterPct = Math.round((waterConsumed / goalMl) * 100);
+
+  type HomeItem = {
+    id: string;
+    title: string;
+    href: string;
+    priority: number;
+    recentAt: number;
+  };
+  const homeItems: HomeItem[] = [];
+  if (waterPct < 100) {
+    homeItems.push({
+      id: "water",
+      title: "Beber agua",
+      href: "/hidratacao",
+      priority: waterPct < 50 ? 10 : 40,
+      recentAt: Date.now(),
+    });
+  }
+  if (todayPlanDay?.exercises?.length) {
+    homeItems.push({
+      id: `workout-${todayPlanDay.id}`,
+      title: todayPlanDay.title || "Treino de hoje",
+      href: "/treinos",
+      priority: 15,
+      recentAt: new Date(workoutPlan?.updated_at ?? Date.now()).getTime(),
+    });
+  }
+  if (currentBook) {
+    homeItems.push({
+      id: `book-${currentBook.id}`,
+      title: `Ler ${currentBook.title}`,
+      href: "/livros",
+      priority: 35,
+      recentAt: new Date(currentBook.updated_at ?? Date.now()).getTime(),
+    });
+  }
+  if (mealPlan?.sections?.[0]) {
+    homeItems.push({
+      id: `meal-${mealPlan.sections[0].id}`,
+      title: mealPlan.sections[0].title,
+      href: "/dieta",
+      priority: 30,
+      recentAt: Date.now(),
+    });
+  }
+  for (const med of activeMeds) {
+    homeItems.push({
+      id: `med-${med.id}`,
+      title: `Tomar ${med.name}`,
+      href: "/remedios",
+      priority: 20,
+      recentAt: Date.now(),
+    });
+  }
+  if (upcoming) {
+    homeItems.push({
+      id: `appt-${upcoming.id}`,
+      title: upcoming.title,
+      href: "/compromissos",
+      priority: 5,
+      recentAt: new Date(upcoming.starts_at).getTime(),
+    });
+  }
+  for (const reminder of (pendingRemindersRes.data ?? []).slice(0, 3)) {
+    homeItems.push({
+      id: `reminder-${reminder.id}`,
+      title: "Lembrete pendente",
+      href: "/lembretes",
+      priority: 25,
+      recentAt: Date.now(),
+    });
+  }
+  for (const exam of pendingExams) {
+    homeItems.push({
+      id: `exam-${exam.id}`,
+      title: exam.name,
+      href: "/exames",
+      priority: 45,
+      recentAt: Date.now(),
+    });
+  }
+  if (queuedMovies[0]) {
+    homeItems.push({
+      id: `movie-${queuedMovies[0].id}`,
+      title: `Assistir ${queuedMovies[0].title}`,
+      href: "/filmes",
+      priority: 50,
+      recentAt: Date.now(),
+    });
+  }
+
+  homeItems.sort((a, b) => a.priority - b.priority || b.recentAt - a.recentAt);
+
   return {
     userName: firstName,
     pendingTasks,
     doneTasks,
     hasWorkoutToday: !!todayPlanDay?.exercises?.length,
-    waterPct: Math.round((waterConsumed / goalMl) * 100),
+    waterPct,
     upcomingAppointment,
     pendingReminders,
+    homeItems: homeItems.slice(0, 6).map(({ id, title, href }) => ({ id, title, href })),
     categories: {
       todayWorkout: todayPlanDay?.title ?? null,
       currentBook: currentBook
