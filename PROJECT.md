@@ -12,7 +12,7 @@
 > you finish a meaningful change, update the "Estado atual" and "Roadmap"
 > sections in the same commit.
 
-Última atualização: 2026-06-22 · Branch de trabalho: `claude/admiring-lovelace-qpxvcx`
+Última atualização: 2026-06-22 (Fase 0+1 executadas) · Branch: `claude/admiring-lovelace-qpxvcx`
 
 ---
 
@@ -81,12 +81,18 @@ meta atual.
   Supabase roda. Ver seção 7.
 
 ### Gaps conhecidos / o que falta para o "norte"
-- [ ] Reduzir navegação ao núcleo (seção 3) — arquivar os demais módulos.
-- [ ] Polir safe-areas iOS (`env(safe-area-inset-*)`) em todas as telas.
-- [ ] Garantir `font-size: 16px` em inputs (evita zoom automático no Safari).
-- [ ] Revisar o dashboard `fixed inset-0` em telas com teclado aberto no iOS.
+- [x] Reduzir navegação ao núcleo (seção 3) — feito no dashboard + manifest.
+- [x] `font-size: 16px` em inputs (regra em `globals.css`, evita zoom no Safari).
+- [x] Safe-areas iOS via classe `.safe-area` no dashboard e no layout protegido.
+- [x] Remover busca global (decisão 2) — input removido do dashboard.
+- [x] Tema claro fixo (decisão 3) — `viewport.themeColor` único + `maximumScale: 1`.
+- [ ] Notificações no núcleo (decisão 4) — **próxima prioridade**, ainda não feita
+      (precisa permissão + agendamento; ver Fase 4).
+- [ ] Unificação total de Tarefas + Lembretes no módulo "Hoje" (hoje o Dashboard
+      já é o "Hoje" e Lembretes segue como rota do núcleo; falta fundir os
+      modelos `tasks` + `reminders`). Ver decisão 1.
 - [ ] Estados vazios elegantes para cada módulo do núcleo.
-- [ ] Busca global (hoje é só um input decorativo) — ou remover por enquanto.
+- [ ] Revisar o dashboard `fixed inset-0` com teclado aberto no iOS (testar em device).
 - [ ] Splash screens iOS (`apple-touch-startup-image`) opcionais.
 
 ## 5. Mapa de arquivos (onde mexer)
@@ -172,29 +178,32 @@ Deploy: Vercel (mesmas 3 env vars em Production + Preview).
 
 ## 9. Roadmap de retomada (faça nesta ordem)
 
-**Fase 0 — Higiene (rápida)**
-- [ ] `npm install`, `npm run build` e `npm run lint` passando no checkout limpo.
-- [ ] Confirmar `.env.local` / variáveis na Vercel.
+**Fase 0 — Higiene (rápida)** ✅
+- [x] `npm install` e `npm run build`/`lint` validados localmente.
+- [ ] Confirmar `.env.local` / variáveis na Vercel (depende do dono).
 
-**Fase 1 — Enxugar para o núcleo**
-- [ ] Editar `src/lib/modules.ts` deixando só Dashboard, Treinos, Hidratação,
-      Lembretes. Arquivar o resto (manter código/rotas/tabelas).
-- [ ] Ajustar cards/carrossel do `dashboard-page.tsx` ao núcleo.
-- [ ] Redirect opcional dos módulos arquivados → `/dashboard`.
+**Fase 1 — Enxugar para o núcleo** ✅
+- [x] `src/lib/modules.ts` só com Dashboard, Treinos, Hidratação, Lembretes.
+- [x] Cards/carrossel do `dashboard-page.tsx` reduzidos ao núcleo.
+- [x] `homeItems` do `app-data.ts` só com água/treino/lembretes.
+- [~] Sem redirect dos arquivados (decisão: preservar código; ficam fora da nav).
 
-**Fase 2 — iOS impecável**
-- [ ] Safe-areas em todas as telas do núcleo.
-- [ ] Inputs 16px; remover zoom/bounce indesejados; testar com teclado aberto.
-- [ ] Validar manifest/ícones/splash no "Adicionar à Tela de Início" do Safari.
+**Fase 2 — iOS impecável** (parcial)
+- [x] Safe-areas (`.safe-area`) no dashboard e no layout protegido.
+- [x] Inputs 16px (sem zoom); `maximumScale: 1`.
+- [ ] Validar em device real: teclado aberto no dashboard `fixed`, bounce.
+- [ ] Splash screens iOS (`apple-touch-startup-image`) — opcional.
 
 **Fase 3 — Polimento minimalista**
 - [ ] Estados vazios e de carregamento elegantes no núcleo.
 - [ ] Microinterações sutis (toque/check) sem exageros.
-- [ ] Decidir sobre busca global (implementar de verdade ou remover).
 
 **Fase 4 — Funcional de verdade**
+- [ ] **Notificações do núcleo** (decisão 4) — treino do dia / meta de água /
+      lembrete vencendo. Definir push vs local antes (ver seção 11).
 - [ ] Garantir que cada check do núcleo grava log por data.
 - [ ] Revisar histórico de treino e hidratação.
+- [ ] Fundir modelos `tasks` + `reminders` no "Hoje" (decisão 1).
 
 > Ao concluir qualquer item, **marque aqui e atualize a seção 4** no mesmo commit.
 
@@ -203,13 +212,26 @@ Deploy: Vercel (mesmas 3 env vars em Production + Preview).
 - 2026-06-22 — Reduzir para núcleo enxuto (Dashboard, Treinos, Hidratação,
   Lembretes). Demais módulos arquivados, não deletados.
 - 2026-06-22 — iOS via PWA (Add to Home Screen). Nativo fica como futuro.
+- 2026-06-22 — Lembretes + Tarefas convergem para o conceito "Hoje". O
+  Dashboard já é o "Hoje" (lista do dia). Fusão completa dos modelos `tasks` +
+  `reminders` fica como refinamento futuro (ver gaps).
+- 2026-06-22 — Busca global removida por enquanto.
+- 2026-06-22 — Tema claro fixo (areia). Sem modo escuro por ora.
+- 2026-06-22 — Notificações (push/local) fazem parte do núcleo desejado;
+  ainda não implementadas — próxima prioridade funcional.
+
+### Como os módulos foram arquivados (referência)
+Não houve deleção. Removidos apenas da navegação: cards do `dashboard-page.tsx`,
+fontes do `homeItems` em `app-data.ts`, atalhos do manifest e a lista em
+`modules.ts`. Rotas, server actions e tabelas seguem intactas e acessíveis por
+URL direta. Para reativar um módulo, basta recolocar seu card/atalho.
 
 ## 11. Decisões em aberto (pergunte ao dono antes de assumir)
 
-- Lembretes e Tarefas viram um único módulo ("Hoje") ou continuam separados?
-- Busca global entra agora ou some por enquanto?
-- Tema: manter só claro (areia) ou adicionar modo escuro?
-- Notificações (push/local) entram no núcleo?
+- Notificações: push (web push + servidor) ou apenas locais? Para quais eventos
+  do núcleo (treino do dia, meta de água, lembrete vencendo)?
+- Fundir de fato `tasks` + `reminders` numa única tabela "Hoje", ou manter dois
+  modelos e só unificar a UI?
 
 ---
 
