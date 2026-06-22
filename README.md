@@ -1,5 +1,8 @@
 # lifeOS
 
+> 🤖 **Retomando o projeto (IA ou pessoa)?** Leia [`PROJECT.md`](./PROJECT.md)
+> primeiro — é a fonte única de verdade (visão, escopo, estado e roadmap).
+
 Web app pessoal (PWA) para rotina, saude e organizacao com os modulos:
 
 - Dashboard
