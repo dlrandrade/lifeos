@@ -24,7 +24,7 @@ export function CheckButton({
         type="submit"
         aria-label={ariaLabel}
         aria-pressed={checked}
-        className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+        className={`flex h-7 w-7 items-center justify-center rounded-md transition active:scale-90 ${
           checked
             ? "bg-[var(--check-active)] text-white"
             : "bg-[var(--check)] text-transparent hover:bg-[var(--check-active)] hover:text-white"

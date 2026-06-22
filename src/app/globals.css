@@ -31,6 +31,7 @@
 
 html {
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -38,6 +39,16 @@ body {
   color: var(--text);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "ss01", "cv11";
+  /* Sensacao de app nativo no iOS: sem bounce vertical exagerado. */
+  overscroll-behavior-y: none;
+}
+
+/* Remove o flash cinza ao tocar em controles no Safari iOS. */
+button,
+a,
+summary,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
 }
 
 a {
@@ -58,4 +69,21 @@ input,
 textarea,
 select {
   font-family: inherit;
+}
+
+/* iOS: fonte >= 16px em campos de texto evita o zoom automatico do Safari.
+   O :not() eleva a especificidade acima das classes text-sm do Tailwind. */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Respeita as safe-areas do iPhone (notch / Dynamic Island / home indicator)
+   no app instalado em tela cheia. */
+.safe-area {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
 }

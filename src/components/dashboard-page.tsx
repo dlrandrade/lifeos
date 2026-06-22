@@ -2,20 +2,11 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import {
   Bell,
-  BookOpen,
-  CalendarDays,
   ChevronRight,
   Droplets,
   Dumbbell,
-  Film,
-  HeartPulse,
   type LucideIcon,
-  Pill,
-  Search,
-  TestTubeDiagonal,
-  Utensils,
 } from "lucide-react";
-import { CreateBoardCard } from "@/components/create-board-card";
 import { buildGreeting } from "@/lib/greeting";
 
 type DashboardData = {
@@ -29,16 +20,9 @@ type DashboardData = {
   homeItems: Array<{ id: string; title: string; href: string }>;
   categories: {
     todayWorkout: string | null;
-    currentBook: { title: string; author: string | null } | null;
-    nextMeal: string | null;
     water: { consumed: number; goal: number };
-    nextAppointment: { title: string; time: string } | null;
     pendingReminders: number;
-    activeMedicationsCount: number;
-    pendingExamsCount: number;
-    nextMovie: { id: string; title: string } | null;
   };
-  boards: Array<{ id: string; name: string; model: string; icon: string | null }>;
 };
 
 export async function DashboardPage({ data }: { data: DashboardData }) {
@@ -66,7 +50,7 @@ export async function DashboardPage({ data }: { data: DashboardData }) {
   return (
     <>
       <PersistHook hook={greeting.hook} />
-      <div className="fixed inset-0 bg-[var(--bg)] p-3 sm:p-5 flex overflow-hidden">
+      <div className="safe-area fixed inset-0 bg-[var(--bg)] sm:p-5 flex overflow-hidden">
         <div className="mx-auto flex w-full max-w-[768px] flex-col rounded-[2rem] bg-[var(--shell)] px-5 py-6 sm:px-7 sm:py-8 shadow-sm overflow-hidden">
           <div className="flex items-center justify-start">
             <span className="text-2xl font-bold tracking-tight">lifeOS</span>
@@ -99,16 +83,7 @@ export async function DashboardPage({ data }: { data: DashboardData }) {
             ))}
           </div>
 
-          <CategoryCarousel cats={cats} boards={data.boards} />
-
-          <div className="mt-4 flex items-center gap-3 rounded-full bg-[var(--card)] px-5 py-3 text-[var(--text-muted)] shadow-sm">
-            <input
-              type="search"
-              placeholder="Buscar..."
-              className="flex-1 bg-transparent text-sm outline-none"
-            />
-            <Search className="h-4 w-4" strokeWidth={1.7} />
-          </div>
+          <CategoryCarousel cats={cats} />
         </div>
       </div>
     </>
@@ -122,26 +97,7 @@ function PersistHook({ hook }: { hook: string }) {
   return <script dangerouslySetInnerHTML={{ __html: script }} />;
 }
 
-const BOARD_ICONS: Record<string, LucideIcon> = {
-  HeartPulse,
-  Dumbbell,
-  Utensils,
-  BookOpen,
-  Film,
-  Droplets,
-  CalendarDays,
-  Bell,
-  Pill,
-  TestTubeDiagonal,
-};
-
-function CategoryCarousel({
-  cats,
-  boards,
-}: {
-  cats: DashboardData["categories"];
-  boards: DashboardData["boards"];
-}) {
+function CategoryCarousel({ cats }: { cats: DashboardData["categories"] }) {
   return (
     <div className="mt-6 -mx-5 sm:-mx-7 shrink-0">
       <div className="flex gap-3 overflow-x-auto px-5 sm:px-7 pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -152,28 +108,10 @@ function CategoryCarousel({
           subtitle={cats.todayWorkout ?? "de hoje"}
         />
         <CatCard
-          href="/livros"
-          Icon={BookOpen}
-          title={cats.currentBook?.title ?? "Livros"}
-          subtitle={cats.currentBook?.author ?? "leitura atual"}
-        />
-        <CatCard
-          href="/dieta"
-          Icon={Utensils}
-          title={cats.nextMeal ?? "Dieta"}
-          subtitle={cats.nextMeal ? "da Manha" : "ativa"}
-        />
-        <CatCard
           href="/hidratacao"
           Icon={Droplets}
           title={`${cats.water.consumed}ml`}
           subtitle={`/ ${cats.water.goal}ml`}
-        />
-        <CatCard
-          href="/compromissos"
-          Icon={CalendarDays}
-          title={cats.nextAppointment?.title ?? "Compromissos"}
-          subtitle={cats.nextAppointment?.time ?? "agenda"}
         />
         <CatCard
           href="/lembretes"
@@ -185,48 +123,6 @@ function CategoryCarousel({
               : "sem pendencias"
           }
         />
-        <CatCard
-          href="/remedios"
-          Icon={Pill}
-          title="Remedios"
-          subtitle={
-            cats.activeMedicationsCount > 0
-              ? `${cats.activeMedicationsCount} ativos`
-              : "nenhum"
-          }
-        />
-        <CatCard
-          href="/exames"
-          Icon={TestTubeDiagonal}
-          title="Exames"
-          subtitle={
-            cats.pendingExamsCount > 0
-              ? `${cats.pendingExamsCount} pendentes`
-              : "em dia"
-          }
-        />
-        <CatCard
-          href="/filmes"
-          Icon={Film}
-          title={cats.nextMovie?.title ?? "Filmes"}
-          subtitle="fila"
-        />
-
-        {boards.map((board) => {
-          const Icon: LucideIcon =
-            (board.icon ? BOARD_ICONS[board.icon] : undefined) ?? HeartPulse;
-          return (
-            <CatCard
-              key={board.id}
-              href={`/lista/${board.id}`}
-              Icon={Icon}
-              title={board.name}
-              subtitle={board.model.toLowerCase()}
-            />
-          );
-        })}
-
-        <CreateBoardCard />
       </div>
     </div>
   );

@@ -48,9 +48,9 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
     shortcuts: [
-      { name: "Dashboard", short_name: "Hoje", url: "/dashboard" },
+      { name: "Hoje", short_name: "Hoje", url: "/dashboard" },
+      { name: "Treino", short_name: "Treino", url: "/treinos" },
       { name: "Hidratacao", short_name: "Agua", url: "/hidratacao" },
-      { name: "Compromissos", short_name: "Agenda", url: "/compromissos" },
       { name: "Lembretes", short_name: "Lembretes", url: "/lembretes" },
     ],
   };
