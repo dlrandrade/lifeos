@@ -2,6 +2,7 @@ import { Bell } from "lucide-react";
 import { PageShell, InnerCard } from "@/components/page-shell";
 import { ItemRow } from "@/components/item-row";
 import { InlineAdd } from "@/components/inline-add";
+import { EmptyState } from "@/components/empty-state";
 import {
   createReminder,
   deleteReminder,
@@ -42,9 +43,11 @@ export default async function LembretesPage() {
         </h1>
 
         {items.length === 0 ? (
-          <p className="mt-8 text-sm text-[var(--text-muted)]">
-            Sem lembretes.
-          </p>
+          <EmptyState
+            icon={Bell}
+            title="Nenhum lembrete"
+            hint="Adicione sua primeira pendencia abaixo."
+          />
         ) : null}
 
         {groups.map((group) => (

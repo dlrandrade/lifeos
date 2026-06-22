@@ -194,9 +194,11 @@ Deploy: Vercel (mesmas 3 env vars em Production + Preview).
 - [ ] Validar em device real: teclado aberto no dashboard `fixed`, bounce.
 - [ ] Splash screens iOS (`apple-touch-startup-image`) — opcional.
 
-**Fase 3 — Polimento minimalista**
-- [ ] Estados vazios e de carregamento elegantes no núcleo.
-- [ ] Microinterações sutis (toque/check) sem exageros.
+**Fase 3 — Polimento minimalista** (parcial)
+- [x] Componente `EmptyState` elegante aplicado em Lembretes e Hidratação.
+- [x] Microinterações: `active:scale` no check, sem flash de toque (iOS),
+      bounce vertical contido (`overscroll-behavior-y`).
+- [ ] Estados de carregamento (skeletons) por rota do núcleo.
 
 **Fase 4 — Funcional de verdade**
 - [ ] **Notificações do núcleo** (decisão 4) — treino do dia / meta de água /

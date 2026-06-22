@@ -1,5 +1,6 @@
 import { Droplets, Trash2 } from "lucide-react";
 import { PageShell, InnerCard } from "@/components/page-shell";
+import { EmptyState } from "@/components/empty-state";
 import { addWaterLog, deleteWaterLog } from "@/server/actions";
 import { getHidratacaoData } from "@/server/app-data";
 
@@ -70,9 +71,11 @@ export default async function HidratacaoPage() {
           </h2>
           <div className="mt-3 divide-y divide-[var(--line)]">
             {data.logs.length === 0 ? (
-              <p className="py-3 text-sm text-[var(--text-muted)]">
-                Nenhum registro hoje.
-              </p>
+              <EmptyState
+                icon={Droplets}
+                title="Nenhum registro hoje"
+                hint="Toque em +200ml para comecar."
+              />
             ) : (
               data.logs.map((log) => (
                 <div
