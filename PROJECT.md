@@ -198,7 +198,8 @@ Deploy: Vercel (mesmas 3 env vars em Production + Preview).
 - [x] Componente `EmptyState` elegante aplicado em Lembretes e Hidratação.
 - [x] Microinterações: `active:scale` no check, sem flash de toque (iOS),
       bounce vertical contido (`overscroll-behavior-y`).
-- [ ] Estados de carregamento (skeletons) por rota do núcleo.
+- [x] Estados de carregamento (skeletons) por rota do núcleo (dashboard,
+      treinos, hidratação, lembretes via `loading.tsx`).
 
 **Fase 4 — Funcional de verdade**
 - [ ] **Notificações do núcleo** (decisão 4) — treino do dia / meta de água /
