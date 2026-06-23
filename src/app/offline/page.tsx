@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Offline — lst",
+  title: "Offline — lifeOS",
   description: "Sem conexao no momento.",
 };
 
@@ -9,7 +9,7 @@ export default function OfflinePage() {
   return (
     <div className="min-h-screen px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-md rounded-[2rem] bg-[var(--shell)] px-6 py-10 sm:px-10">
-        <p className="text-2xl font-bold tracking-tight">lst</p>
+        <p className="text-2xl font-bold tracking-tight">lifeOS</p>
         <h1 className="mt-6 text-3xl font-bold leading-tight">
           Voce esta offline.
         </h1>

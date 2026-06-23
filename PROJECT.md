@@ -180,7 +180,10 @@ Deploy: Vercel (mesmas 3 env vars em Production + Preview).
 
 **Fase 0 — Higiene (rápida)** ✅
 - [x] `npm install` e `npm run build`/`lint` validados localmente.
-- [ ] Confirmar `.env.local` / variáveis na Vercel (depende do dono).
+- [x] Migrations aplicadas no Supabase novo (`pfirxbvkombvzdeartqs`) e env vars
+      configuradas na Vercel. Branch mergeada em `main` (PR #3); **produção no ar**
+      (login renderiza 200). Brand antigo "lst" → "lifeOS" corrigido em
+      login/offline/install hint.
 
 **Fase 1 — Enxugar para o núcleo** ✅
 - [x] `src/lib/modules.ts` só com Dashboard, Treinos, Hidratação, Lembretes.

@@ -205,7 +205,7 @@ export function PwaRegister() {
 
         {showInstall ? (
           <div className="flex items-center justify-between gap-3 rounded-[1.25rem] border border-line bg-white/95 px-4 py-3 text-sm shadow-lg backdrop-blur">
-            <span>Instalar lst no seu dispositivo?</span>
+            <span>Instalar lifeOS no seu dispositivo?</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
